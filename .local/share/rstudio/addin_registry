@@ -1,4 +1,22 @@
 {
+    "clipr::clipr_output": {
+        "name": "Output to clipboard",
+        "package": "clipr",
+        "title": "",
+        "description": "Copies the console output of a selected expression to the system clipboard",
+        "interactive": false,
+        "binding": "clipr_output",
+        "ordinal": 10
+    },
+    "clipr::clipr_result": {
+        "name": "Value to clipboard",
+        "package": "clipr",
+        "title": "",
+        "description": "Copies the results of a selected expression to the system clipboard",
+        "interactive": false,
+        "binding": "clipr_result",
+        "ordinal": 9
+    },
     "covr::addin_report": {
         "name": "Calculate package test coverage",
         "package": "covr",
@@ -7,5 +25,68 @@
         "interactive": false,
         "binding": "addin_report",
         "ordinal": 1
+    },
+    "questionr::icut": {
+        "name": "Numeric range dividing",
+        "package": "questionr",
+        "title": "",
+        "description": "Interactively generate code for dividing the range of a numeric variable",
+        "interactive": true,
+        "binding": "icut",
+        "ordinal": 8
+    },
+    "questionr::iorder": {
+        "name": "Levels ordering",
+        "package": "questionr",
+        "title": "",
+        "description": "Interactively generate code for a variable levels reordering",
+        "interactive": true,
+        "binding": "iorder",
+        "ordinal": 7
+    },
+    "questionr::irec": {
+        "name": "Levels recoding",
+        "package": "questionr",
+        "title": "",
+        "description": "Interactively generate code for a variable levels recoding",
+        "interactive": true,
+        "binding": "irec",
+        "ordinal": 6
+    },
+    "styler::set_style_transformers": {
+        "name": "Set style",
+        "package": "styler",
+        "title": "",
+        "description": "Prompt for and set the style transformers used by all styler addins",
+        "interactive": true,
+        "binding": "set_style_transformers",
+        "ordinal": 2
+    },
+    "styler::style_active_file": {
+        "name": "Style active file",
+        "package": "styler",
+        "title": "",
+        "description": "Pretty-print active file",
+        "interactive": true,
+        "binding": "style_active_file",
+        "ordinal": 4
+    },
+    "styler::style_active_pkg": {
+        "name": "Style active package",
+        "package": "styler",
+        "title": "",
+        "description": "Pretty-print active package",
+        "interactive": true,
+        "binding": "style_active_pkg",
+        "ordinal": 5
+    },
+    "styler::style_selection": {
+        "name": "Style selection",
+        "package": "styler",
+        "title": "",
+        "description": "Pretty-print selection",
+        "interactive": true,
+        "binding": "style_selection",
+        "ordinal": 3
     }
 }
