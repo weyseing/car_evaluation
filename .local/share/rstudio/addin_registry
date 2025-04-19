@@ -6,7 +6,7 @@
         "description": "Copies the console output of a selected expression to the system clipboard",
         "interactive": false,
         "binding": "clipr_output",
-        "ordinal": 10
+        "ordinal": 12
     },
     "clipr::clipr_result": {
         "name": "Value to clipboard",
@@ -15,7 +15,7 @@
         "description": "Copies the results of a selected expression to the system clipboard",
         "interactive": false,
         "binding": "clipr_result",
-        "ordinal": 9
+        "ordinal": 11
     },
     "covr::addin_report": {
         "name": "Calculate package test coverage",
@@ -24,7 +24,25 @@
         "description": "Calculates the package test coverage and opens a report, using `covr::report()`",
         "interactive": false,
         "binding": "addin_report",
+        "ordinal": 3
+    },
+    "lintr::addin_lint": {
+        "name": "Lint current file",
+        "package": "lintr",
+        "title": "",
+        "description": "Runs lintr::lint on the current file",
+        "interactive": true,
+        "binding": "addin_lint",
         "ordinal": 1
+    },
+    "lintr::addin_lint_package": {
+        "name": "Lint current package",
+        "package": "lintr",
+        "title": "",
+        "description": "Runs lintr::lint_package",
+        "interactive": true,
+        "binding": "addin_lint_package",
+        "ordinal": 2
     },
     "questionr::icut": {
         "name": "Numeric range dividing",
@@ -33,7 +51,7 @@
         "description": "Interactively generate code for dividing the range of a numeric variable",
         "interactive": true,
         "binding": "icut",
-        "ordinal": 8
+        "ordinal": 10
     },
     "questionr::iorder": {
         "name": "Levels ordering",
@@ -42,7 +60,7 @@
         "description": "Interactively generate code for a variable levels reordering",
         "interactive": true,
         "binding": "iorder",
-        "ordinal": 7
+        "ordinal": 9
     },
     "questionr::irec": {
         "name": "Levels recoding",
@@ -51,7 +69,7 @@
         "description": "Interactively generate code for a variable levels recoding",
         "interactive": true,
         "binding": "irec",
-        "ordinal": 6
+        "ordinal": 8
     },
     "styler::set_style_transformers": {
         "name": "Set style",
@@ -60,7 +78,7 @@
         "description": "Prompt for and set the style transformers used by all styler addins",
         "interactive": true,
         "binding": "set_style_transformers",
-        "ordinal": 2
+        "ordinal": 4
     },
     "styler::style_active_file": {
         "name": "Style active file",
@@ -69,7 +87,7 @@
         "description": "Pretty-print active file",
         "interactive": true,
         "binding": "style_active_file",
-        "ordinal": 4
+        "ordinal": 6
     },
     "styler::style_active_pkg": {
         "name": "Style active package",
@@ -78,7 +96,7 @@
         "description": "Pretty-print active package",
         "interactive": true,
         "binding": "style_active_pkg",
-        "ordinal": 5
+        "ordinal": 7
     },
     "styler::style_selection": {
         "name": "Style selection",
@@ -87,6 +105,6 @@
         "description": "Pretty-print selection",
         "interactive": true,
         "binding": "style_selection",
-        "ordinal": 3
+        "ordinal": 5
     }
 }

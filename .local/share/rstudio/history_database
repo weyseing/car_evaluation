@@ -2092,3 +2092,2273 @@
 1745060472977:svm_cm   <- confusionMatrix(svm_pred, test_scaled$class)
 1745060472986:print(svm_model)
 1745060472990:print(svm_cm)
+1745085188569:# import library
+1745085188569:if (!require("ggplot2")) {
+1745085188569:install.packages("ggplot2", dependencies = TRUE)
+1745085188569:}
+1745085188583:if (!require("vcd")) {
+1745085188583:install.packages("vcd", dependencies = TRUE)
+1745085188583:}
+1745085188652:if (!require("ca")) {
+1745085188652:install.packages("ca", dependencies = TRUE)
+1745085188652:}
+1745085188662:if (!require("caret")) {
+1745085188662:install.packages("caret", dependencies = TRUE)
+1745085188662:}
+1745085190214:if (!require("smotefamily")) {
+1745085190214:install.packages("smotefamily", dependencies = TRUE)
+1745085190214:}
+1745085190264:library(ggplot2)
+1745085190264:library(vcd)
+1745085190264:library(RColorBrewer)
+1745085190272:library(scales)
+1745085190279:library(dplyr)
+1745085190289:library(ca)
+1745085190289:library(gridExtra)
+1745085190299:library(caret)
+1745085190299:library(smotefamily)
+1745085190300:# load data
+1745085190300:col_names <- c("buying", "maint", "doors", "persons", "lug_boot", "safety", "class")
+1745085190300:car_data <- read.csv("car.data", header = FALSE, col.names = col_names, stringsAsFactors = TRUE)
+1745085190304:# set factor level
+1745085190304:car_data$buying <- factor(car_data$buying,
+1745085190304:levels = c("low", "med", "high", "vhigh"),
+1745085190304:ordered = TRUE)
+1745085190304:car_data$maint <- factor(car_data$maint,
+1745085190305:levels = c("low", "med", "high", "vhigh"),
+1745085190305:ordered = TRUE)
+1745085190305:car_data$lug_boot <- factor(car_data$lug_boot,
+1745085190305:levels = c("small", "med", "big"),
+1745085190305:ordered = TRUE)
+1745085190305:car_data$safety <- factor(car_data$safety,
+1745085190306:levels = c("low", "med", "high"),
+1745085190306:ordered = TRUE)
+1745085190306:car_data$class <- factor(car_data$class,
+1745085190306:levels = c("unacc", "acc", "good", "vgood"),
+1745085190306:ordered = TRUE)
+1745085190307:# === EDA ===
+1745085190307:# general explore
+1745085190307:str(car_data)
+1745085190317:summary(car_data)
+1745085190320:# class distribution analysis
+1745085190320:png("result_1_distribution.png", width = 800, height = 600, res = 100)
+1745085190320:class_dist <- table(car_data$class)
+1745085190321:prop_dist <- prop.table(class_dist) * 100
+1745085190321:barplot(prop_dist,
+1745085190321:main = "Car Evaluation Class Distribution",
+1745085190321:xlab = "Evaluation Category",
+1745085190321:ylab = "Percentage (%)",
+1745085190322:col = palette("Paired")[1:4],
+1745085190322:ylim = c(0, 75),
+1745085190322:cex.names = 1.2,
+1745085190322:cex.lab = 1.2)
+1745085190331:text(x = seq_along(prop_dist),
+1745085190331:y = prop_dist + 2,
+1745085190331:labels = paste0(round(prop_dist, 1), "%"),
+1745085190331:col = "black",
+1745085190331:cex = 1.0)
+1745085190332:dev.off()
+1745085190351:# chi-square (association between feature & target)
+1745085190351:features <- setdiff(names(car_data), "class")
+1745085190351:chi_results <- lapply(features, function(feat) {
+1745085190351:tbl <- table(car_data[[feat]], car_data$class)
+1745085190351:chi_test <- chisq.test(tbl)
+1745085190351:data.frame(Feature = feat,
+1745085190352:P_Value = chi_test$p.value,
+1745085190352:Chi_Squared = chi_test$statistic)
+1745085190352:})
+1745085190361:do.call(rbind, chi_results)
+1745085190364:# visualize distribution
+1745085190364:plot_data <- car_data %>%
+1745085190364:mutate(class = factor(class, levels = c("unacc", "acc", "good", "vgood")))
+1745085190370:features <- setdiff(names(plot_data), "class")
+1745085190370:plots <- lapply(features, function(feature) {
+1745085190370:ggplot(plot_data, aes_string(x = feature, fill = "class")) +
+1745085190370:geom_bar(position = "fill") +
+1745085190371:labs(title = paste("Distribution by", feature), y = "Proportion") +
+1745085190371:scale_fill_brewer(palette = "Paired") +
+1745085190371:theme(axis.text.x = element_text(angle = 45, hjust = 1))
+1745085190371:})
+1745085190529:png("result_2_distribution.png", width = 1600, height = 1200, res = 100)
+1745085190530:do.call(grid.arrange, c(plots, ncol = 2))
+1745085191630:dev.off()
+1745085191706:# === PRE-PROCESSING ===
+1745085191707:# one-hot encoding
+1745085191707:car_data <- car_data %>%
+1745085191707:mutate(
+1745085191707:buying = factor(buying, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745085191707:maint = factor(maint, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745085191707:safety = factor(safety, levels = c("low", "med", "high"), ordered = TRUE),
+1745085191707:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE),
+1745085191708:doors = factor(doors, levels = c("2", "3", "4", "5more"), ordered = TRUE),
+1745085191708:persons = factor(persons, levels = c("2", "4", "more"), ordered = TRUE),
+1745085191708:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE)
+1745085191708:)
+1745085191711:ordinal_features <- setdiff(names(car_data), "class")
+1745085191711:target <- "class"
+1745085191712:car_encoded <- data.frame(
+1745085191712:lapply(car_data[, ordinal_features], as.integer),
+1745085191712:class = car_data[[target]]
+1745085191712:)
+1745085191713:str(car_data)
+1745085191721:summary(car_encoded)
+1745085191725:# standardization scaling
+1745085191726:set.seed(123)
+1745085191726:train_index <- sample(1:nrow(car_encoded), 0.8 * nrow(car_encoded))
+1745085191726:train_data <- car_encoded[train_index, ]
+1745085191726:test_data <- car_encoded[-train_index, ]
+1745085191727:preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+1745085191732:train_scaled <- predict(preproc, train_data)
+1745085191735:test_scaled <- predict(preproc, test_data)
+1745085191736:summary(train_scaled)
+1745085191740:# over-sampling
+1745085191740:cat("Class distribution BEFORE balancing:\n")
+1745085191740:print(table(train_scaled$class))
+1745085191741:train_balanced <- upSample(x = train_scaled[, -ncol(train_scaled)],
+1745085191742:y = train_scaled[, ncol(train_scaled)],
+1745085191742:yname = "class")
+1745085191750:cat("\nClass distribution AFTER SMOTE:\n")
+1745085191750:print(table(train_balanced$class))
+1745085191751:# === MODELING ===
+1745085191752:# random forest
+1745085191752:rf_ctrl <- trainControl(method = "repeatedcv",
+1745085191752:number = 3,
+1745085191752:classProbs = TRUE)
+1745085191752:rf_model <- train(
+1745085191752:class ~ .,
+1745085191753:data    = train_balanced,
+1745085191753:method  = "rf",
+1745085191753:trControl = rf_ctrl,
+1745085191753:tuneLength = 5
+1745085191753:)
+1745085206197:rf_pred <- predict(rf_model, newdata = test_scaled)
+1745085206206:rf_cm   <- confusionMatrix(rf_pred, test_scaled$class)
+1745085206219:print(rf_model)
+1745085206224:print(rf_cm)
+1745085206229:# SVM
+1745085206229:svm_ctrl <- trainControl(method = "repeatedcv",
+1745085206229:number = 3,
+1745085206229:classProbs = TRUE)
+1745085206230:svm_model <- train(
+1745085206230:class ~ .,
+1745085206230:data    = train_balanced,
+1745085206230:method  = "svmRadial",
+1745085206230:trControl = svm_ctrl,
+1745085206230:tuneLength = 5
+1745085206230:)
+1745085214697:svm_pred <- predict(svm_model, newdata = test_scaled)
+1745085214722:svm_cm   <- confusionMatrix(svm_pred, test_scaled$class)
+1745085214733:print(svm_model)
+1745085214742:print(svm_cm)
+1745087815149:ggplot(car_encoded, aes(x = factor(buying))) +
+1745087815149:geom_bar(fill = "#2B7CD3") +
+1745087815149:scale_x_discrete(labels = c("low", "med", "high", "vhigh")) +  # Map integers to original labels
+1745087815150:labs(title = "Distribution of 'buying' (Ordinal Encoding)",
+1745087815150:x = "Buying Level",
+1745087815150:y = "Count") +
+1745087815150:theme_minimal()
+1745087876610:cor_matrix <- cor(car_encoded[, ordinal_features])
+1745087876611:# Plot
+1745087876611:corrplot(cor_matrix,
+1745087876611:method = "color",
+1745087876611:type = "upper",
+1745087876612:tl.col = "black",
+1745087876612:title = "Correlation Matrix for Ordinal Features")
+1745087885679:library(corrplot)
+1745087895755:if (!require("corrplot")) {
+1745087895756:install.packages("corrplot", dependencies = TRUE)
+1745087895756:}
+1745087905316:library(corrplot)
+1745087905330:library(corrplot)
+1745087913876:cor_matrix <- cor(car_encoded[, ordinal_features])
+1745087913877:# Plot
+1745087913877:corrplot(cor_matrix,
+1745087913877:method = "color",
+1745087913877:type = "upper",
+1745087913878:tl.col = "black",
+1745087913878:title = "Correlation Matrix for Ordinal Features")
+1745088074725:map_buying <- car_data %>%
+1745088074725:select(buying) %>%
+1745088074726:mutate(encoded = as.integer(buying)) %>%
+1745088074726:distinct() %>%
+1745088074726:rename(Category = buying, Encoded = encoded)
+1745088074734:knitr::kable(map_buying, caption = "Mapping: Buying Levels → Encoded Integers")
+1745088151607:cat("Buying Feature Distribution:\n")
+1745088151607:txt_hist(car_encoded$buying, breaks = 4, xlab = "Encoded Value")
+1745088162504:library(txtplot)
+1745088170788:if (!require("txtplot")) {
+1745088170788:install.packages("txtplot", dependencies = TRUE)
+1745088170788:}
+1745088173840:library(txtplot)
+1745088179487:cat("Buying Feature Distribution:\n")
+1745088179487:txt_hist(car_encoded$buying, breaks = 4, xlab = "Encoded Value")
+1745088186481:library(txtplot)
+1745088203925:cat("Buying Feature Distribution:\n")
+1745088203926:txt_hist(car_encoded$buying, breaks = 4, xlab = "Encoded Value")
+1745088233542:table(car_encoded$safety, car_encoded$class) %>%
+1745088233542:knitr::kable(
+1745088233542:caption = "Safety Levels by Class",
+1745088233543:row.names = TRUE,
+1745088233543:col.names = c("Encoded", "unacc", "acc", "good", "vgood")
+1745088233543:)
+1745088280208:if (!require("txtplot")) {
+1745088280209:install.packages("txtplot", dependencies = TRUE)
+1745088280209:}
+1745088283309:library(txtplot)
+1745088293450:txt_hist(car_encoded$buying, breaks = 4, xlab = "Encoded Value")
+1745088299641:str(car_data)
+1745088299650:summary(car_encoded)
+1745088299654:table(car_encoded$safety, car_encoded$class) %>%
+1745088299654:knitr::kable(
+1745088299655:caption = "Safety Levels by Class",
+1745088299655:row.names = TRUE,
+1745088299655:col.names = c("Encoded", "unacc", "acc", "good", "vgood")
+1745088299655:)
+1745089049321:car_long <- car_encoded %>%
+1745089049321:pivot_longer(cols = ordinal_features, names_to = "feature", values_to = "value")
+1745089057098:library(GGally)
+1745089065055:if (!require("GGally")) {
+1745089065056:install.packages("GGally", dependencies = TRUE)
+1745089065056:}
+1745089080292:library(GGally)
+1745089089005:ggpair(car_long,
+1745089089005:columns = ordinal_features,
+1745089089005:mapping = aes(value, fill = class),
+1745089089005:upper = list(continuous = wrap("bar", alpha = 0.7)),
+1745089089005:lower = list(continuous = "blank"),
+1745089089006:title = "Ordinal Features vs. Class") +
+1745089089006:theme_minimal()
+1745089093060:car_long <- car_encoded %>%
+1745089093060:pivot_longer(cols = ordinal_features, names_to = "feature", values_to = "value")
+1745089102804:library(GGally)
+1745089108146:car_long <- car_encoded %>%
+1745089108146:pivot_longer(cols = ordinal_features, names_to = "feature", values_to = "value")
+1745089145073:library(tidyr)
+1745089151195:car_long <- car_encoded %>%
+1745089151196:pivot_longer(cols = ordinal_features, names_to = "feature", values_to = "value")
+1745089151321:# Plot grid (2 columns)
+1745089151321:ggpair(car_long,
+1745089151321:columns = ordinal_features,
+1745089151321:mapping = aes(value, fill = class),
+1745089151322:upper = list(continuous = wrap("bar", alpha = 0.7)),
+1745089151322:lower = list(continuous = "blank"),
+1745089151322:title = "Ordinal Features vs. Class") +
+1745089151322:theme_minimal()
+1745089195875:library(GGally)
+1745089199970:car_long <- car_encoded %>%
+1745089199971:pivot_longer(cols = ordinal_features, names_to = "feature", values_to = "value")
+1745089199978:ggpair(car_long,
+1745089199978:columns = ordinal_features,
+1745089199978:mapping = aes(value, fill = class),
+1745089199979:upper = list(continuous = wrap("bar", alpha = 0.7)),
+1745089199979:lower = list(continuous = "blank"),
+1745089199979:title = "Ordinal Features vs. Class") +
+1745089199979:theme_minimal()
+1745089217561:library(patchwork)
+1745089222934:car_long <- car_encoded %>%
+1745089222935:pivot_longer(cols = ordinal_features, names_to = "feature", values_to = "value")
+1745089222947:ggpair(car_long,
+1745089222948:columns = ordinal_features,
+1745089222948:mapping = aes(value, fill = class),
+1745089222948:upper = list(continuous = wrap("bar", alpha = 0.7)),
+1745089222948:lower = list(continuous = "blank"),
+1745089222948:title = "Ordinal Features vs. Class") +
+1745089222949:theme_minimal()
+1745089247916:table(car_encoded$safety, car_encoded$class) %>%
+1745089247916:knitr::kable(
+1745089247916:caption = "Safety Levels by Class",
+1745089247916:row.names = TRUE,
+1745089247917:col.names = c("Encoded", "unacc", "acc", "good", "vgood")
+1745089247917:)
+1745089342960:View(car_encoded)
+1745089348268:for (feature in ordinal_features) {
+1745089348268:cat("\n=== Feature:", feature, "===\n")
+1745089348269:print(table(car_encoded[[feature]], car_encoded$class))
+1745089348269:}
+1745089393991:ordinal_features <- setdiff(names(car_encoded), "class")
+1745089393992:# Set up 2-column grid layout (3 rows x 2 columns)
+1745089393992:par(mfrow = c(3, 2),  # 3 rows, 2 columns
+1745089393992:mar = c(4, 4, 2, 1),  # Adjust margins for readability
+1745089393992:oma = c(0, 0, 2, 0))  # Outer margin for title
+1745089393992:# Add a shared title
+1745089393993:title("Ordinal Features vs. Class", outer = TRUE)
+1745089393995:# Generate bar plots for each feature vs. class
+1745089393996:for (feature in ordinal_features) {
+1745089393996:# Create contingency table
+1745089393996:tbl <- table(car_encoded[[feature]], car_encoded$class)
+1745089393996:# Plot
+1745089393996:barplot(
+1745089393996:tbl,
+1745089393996:main = feature,
+1745089393996:xlab = "Encoded Value",
+1745089393997:ylab = "Count",
+1745089393997:col = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"),  # Color per class
+1745089393997:legend.text = levels(car_encoded$class),
+1745089393997:args.legend = list(x = "topright", bty = "n", cex = 0.8)
+1745089393997:)
+1745089393997:}
+1745089456808:car_encoded <- data.frame(
+1745089456808:lapply(car_data[, ordinal_features], as.integer),
+1745089456808:class = car_data[[target]]
+1745089456809:)
+1745089456810:# visualize
+1745089456811:str(car_data)
+1745089456819:summary(car_encoded)
+1745089456822:ordinal_features <- setdiff(names(car_encoded), "class")
+1745089456823:# Split features into two groups (for 2 columns)
+1745089456823:col1_features <- ordinal_features[1:ceiling(length(ordinal_features)/2)]
+1745089456823:col2_features <- ordinal_features[(ceiling(length(ordinal_features)/2)+1):length(ordinal_features)]
+1745089456823:# Function to generate a table for a given feature
+1745089456823:generate_table <- function(feature) {
+1745089456824:tbl <- table(car_encoded[[feature]], car_encoded$class)
+1745089456824:colnames(tbl) <- levels(car_encoded$class)
+1745089456824:rownames(tbl) <- levels(car_data[[feature]])  # Original categories
+1745089456824:return(tbl)
+1745089456824:}
+1745089456824:# Print tables in 2 columns
+1745089456825:for (i in 1:max(length(col1_features), length(col2_features))) {
+1745089456825:cat("\n")  # New row
+1745089456825:# Print left column
+1745089456825:if (i <= length(col1_features)) {
+1745089456825:kable(
+1745089456825:generate_table(col1_features[i]),
+1745089456825:caption = paste("Feature:", col1_features[i]),
+1745089456826:align = "lrrrr"
+1745089456826:)
+1745089456826:}
+1745089456826:# Print right column
+1745089456826:if (i <= length(col2_features)) {
+1745089456826:kable(
+1745089456826:generate_table(col2_features[i]),
+1745089456827:caption = paste("Feature:", col2_features[i]),
+1745089456827:align = "lrrrr"
+1745089456827:)
+1745089456827:}
+1745089468771:car_encoded <- data.frame(
+1745089468771:lapply(car_data[, ordinal_features], as.integer),
+1745089468771:class = car_data[[target]]
+1745089468771:)
+1745089468772:# visualize
+1745089468772:str(car_data)
+1745089468772:summary(car_encoded)
+1745089468773:ordinal_features <- setdiff(names(car_encoded), "class")
+1745089468773:# Split features into two groups (for 2 columns)
+1745089468774:col1_features <- ordinal_features[1:ceiling(length(ordinal_features)/2)]
+1745089468774:col2_features <- ordinal_features[(ceiling(length(ordinal_features)/2)+1):length(ordinal_features)]
+1745089468774:# Function to generate a table for a given feature
+1745089468774:generate_table <- function(feature) {
+1745089468774:tbl <- table(car_encoded[[feature]], car_encoded$class)
+1745089468774:colnames(tbl) <- levels(car_encoded$class)
+1745089468774:rownames(tbl) <- levels(car_data[[feature]])  # Original categories
+1745089468775:return(tbl)
+1745089468775:}
+1745089468775:# Print tables in 2 columns
+1745089468775:for (i in 1:max(length(col1_features), length(col2_features))) {
+1745089468775:cat("\n")  # New row
+1745089468776:# Print left column
+1745089468776:if (i <= length(col1_features)) {
+1745089468776:kable(
+1745089468776:generate_table(col1_features[i]),
+1745089468776:caption = paste("Feature:", col1_features[i]),
+1745089468777:align = "lrrrr"
+1745089468777:)
+1745089468777:}
+1745089468777:# Print right column
+1745089468777:if (i <= length(col2_features)) {
+1745089468778:kable(
+1745089468778:generate_table(col2_features[i]),
+1745089468778:caption = paste("Feature:", col2_features[i]),
+1745089468779:align = "lrrrr"
+1745089468779:)
+1745089468779:}
+1745089468780:}
+1745089483982:ordinal_features <- setdiff(names(car_encoded), "class")
+1745089483983:# Split features into two groups (for 2 columns)
+1745089483983:col1_features <- ordinal_features[1:ceiling(length(ordinal_features)/2)]
+1745089483984:col2_features <- ordinal_features[(ceiling(length(ordinal_features)/2)+1):length(ordinal_features)]
+1745089483984:# Function to generate a table for a given feature
+1745089483985:generate_table <- function(feature) {
+1745089483985:tbl <- table(car_encoded[[feature]], car_encoded$class)
+1745089483985:colnames(tbl) <- levels(car_encoded$class)
+1745089483985:rownames(tbl) <- levels(car_data[[feature]])  # Original categories
+1745089483986:return(tbl)
+1745089483986:}
+1745089483986:# Print tables in 2 columns
+1745089483986:for (i in 1:max(length(col1_features), length(col2_features))) {
+1745089483987:cat("\n")  # New row
+1745089483987:# Print left column
+1745089483987:if (i <= length(col1_features)) {
+1745089483988:kable(
+1745089483988:generate_table(col1_features[i]),
+1745089483988:caption = paste("Feature:", col1_features[i]),
+1745089483988:align = "lrrrr"
+1745089483989:)
+1745089483989:}
+1745089483989:# Print right column
+1745089483989:if (i <= length(col2_features)) {
+1745089483990:kable(
+1745089483990:generate_table(col2_features[i]),
+1745089483990:caption = paste("Feature:", col2_features[i]),
+1745089483990:align = "lrrrr"
+1745089483991:)
+1745089483991:}
+1745089483992:}
+1745089524722:features <- setdiff(names(car_encoded), "class")
+1745089524723:# start a flex container
+1745089524723:cat("<div style='display:flex; flex-wrap:wrap;'>\n")
+1745089524724:for(feat in features){
+1745089524725:# compute contingency
+1745089524725:tab <- table(car_encoded[[feat]], car_encoded$class)
+1745089524726:# each table gets ~48% width, 1% margin
+1745089524726:cat("<div style='flex:0 0 48%; margin:1%;'>\n")
+1745089524727:# print the kable inside
+1745089524727:print(
+1745089524727:kable(
+1745089524728:tab,
+1745089524728:caption   = paste0("“", feat, "” by Class"),
+1745089524728:row.names = TRUE,
+1745089524729:col.names = c("Encoded", "unacc", "acc", "good", "vgood")
+1745089524729:)
+1745089524730:)
+1745089524730:cat("</div>\n")
+1745089524730:}
+1745089524731:# close flex container
+1745089524731:cat("</div>\n")
+1745089534977:summary(car_encoded)
+1745089537991:# import library
+1745089537992:if (!require("ggplot2")) {
+1745089537992:install.packages("ggplot2", dependencies = TRUE)
+1745089537993:}
+1745089537993:if (!require("vcd")) {
+1745089537993:install.packages("vcd", dependencies = TRUE)
+1745089537993:}
+1745089537994:if (!require("ca")) {
+1745089537994:install.packages("ca", dependencies = TRUE)
+1745089537994:}
+1745089537995:if (!require("caret")) {
+1745089537995:install.packages("caret", dependencies = TRUE)
+1745089537995:}
+1745089537995:if (!require("smotefamily")) {
+1745089537996:install.packages("smotefamily", dependencies = TRUE)
+1745089537996:}
+1745089537996:if (!require("corrplot")) {
+1745089537997:install.packages("corrplot", dependencies = TRUE)
+1745089537997:}
+1745089537997:if (!require("txtplot")) {
+1745089537998:install.packages("txtplot", dependencies = TRUE)
+1745089537998:}
+1745089537998:if (!require("GGally")) {
+1745089537999:install.packages("GGally", dependencies = TRUE)
+1745089537999:}
+1745089538000:library(ggplot2)
+1745089538000:library(vcd)
+1745089538000:library(RColorBrewer)
+1745089538001:library(scales)
+1745089538001:library(dplyr)
+1745089538001:library(ca)
+1745089538002:library(gridExtra)
+1745089538002:library(caret)
+1745089538003:library(smotefamily)
+1745089538003:library(corrplot)
+1745089538004:library(txtplot)
+1745089538004:library(GGally)
+1745089538004:library(tidyr)
+1745089538004:library(patchwork)
+1745089538005:# load data
+1745089538006:col_names <- c("buying", "maint", "doors", "persons", "lug_boot", "safety", "class")
+1745089538006:car_data <- read.csv("car.data", header = FALSE, col.names = col_names, stringsAsFactors = TRUE)
+1745089538007:# set factor level
+1745089538007:car_data$buying <- factor(car_data$buying,
+1745089538008:levels = c("low", "med", "high", "vhigh"),
+1745089538008:ordered = TRUE)
+1745089538008:car_data$maint <- factor(car_data$maint,
+1745089538009:levels = c("low", "med", "high", "vhigh"),
+1745089538009:ordered = TRUE)
+1745089538009:car_data$lug_boot <- factor(car_data$lug_boot,
+1745089538010:levels = c("small", "med", "big"),
+1745089538010:ordered = TRUE)
+1745089538010:car_data$safety <- factor(car_data$safety,
+1745089538011:levels = c("low", "med", "high"),
+1745089538011:ordered = TRUE)
+1745089538012:car_data$class <- factor(car_data$class,
+1745089538012:levels = c("unacc", "acc", "good", "vgood"),
+1745089538013:ordered = TRUE)
+1745089538013:# === EDA ===
+1745089538014:# general explore
+1745089538014:str(car_data)
+1745089538015:summary(car_data)
+1745089538016:# class distribution analysis
+1745089538016:png("result_1_distribution.png", width = 800, height = 600, res = 100)
+1745089538016:class_dist <- table(car_data$class)
+1745089538017:prop_dist <- prop.table(class_dist) * 100
+1745089538017:barplot(prop_dist,
+1745089538018:main = "Car Evaluation Class Distribution",
+1745089538018:xlab = "Evaluation Category",
+1745089538018:ylab = "Percentage (%)",
+1745089538019:col = palette("Paired")[1:4],
+1745089538019:ylim = c(0, 75),
+1745089538020:cex.names = 1.2,
+1745089538020:cex.lab = 1.2)
+1745089538020:text(x = seq_along(prop_dist),
+1745089538021:y = prop_dist + 2,
+1745089538021:labels = paste0(round(prop_dist, 1), "%"),
+1745089538022:col = "black",
+1745089538022:cex = 1.0)
+1745089538023:dev.off()
+1745089538023:# chi-square (association between feature & target)
+1745089538024:features <- setdiff(names(car_data), "class")
+1745089538024:chi_results <- lapply(features, function(feat) {
+1745089538025:tbl <- table(car_data[[feat]], car_data$class)
+1745089538025:chi_test <- chisq.test(tbl)
+1745089538025:data.frame(Feature = feat,
+1745089538026:P_Value = chi_test$p.value,
+1745089538026:Chi_Squared = chi_test$statistic)
+1745089538027:})
+1745089538027:do.call(rbind, chi_results)
+1745089538028:# visualize distribution
+1745089538028:plot_data <- car_data %>%
+1745089538029:mutate(class = factor(class, levels = c("unacc", "acc", "good", "vgood")))
+1745089538029:features <- setdiff(names(plot_data), "class")
+1745089538030:plots <- lapply(features, function(feature) {
+1745089538031:ggplot(plot_data, aes_string(x = feature, fill = "class")) +
+1745089538031:geom_bar(position = "fill") +
+1745089538032:labs(title = paste("Distribution by", feature), y = "Proportion") +
+1745089538032:scale_fill_brewer(palette = "Paired") +
+1745089538033:theme(axis.text.x = element_text(angle = 45, hjust = 1))
+1745089538033:})
+1745089538035:png("result_2_distribution.png", width = 1600, height = 1200, res = 100)
+1745089538035:do.call(grid.arrange, c(plots, ncol = 2))
+1745089538036:dev.off()
+1745089538037:# === PRE-PROCESSING ===
+1745089538038:# ordinal encoding
+1745089538039:car_data <- car_data %>%
+1745089538039:mutate(
+1745089538040:buying = factor(buying, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745089538040:maint = factor(maint, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745089538041:safety = factor(safety, levels = c("low", "med", "high"), ordered = TRUE),
+1745089538041:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE),
+1745089538042:doors = factor(doors, levels = c("2", "3", "4", "5more"), ordered = TRUE),
+1745089538042:persons = factor(persons, levels = c("2", "4", "more"), ordered = TRUE),
+1745089538043:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE)
+1745089538043:)
+1745089538044:ordinal_features <- setdiff(names(car_data), "class")
+1745089538045:target <- "class"
+1745089538045:car_encoded <- data.frame(
+1745089538046:lapply(car_data[, ordinal_features], as.integer),
+1745089538047:class = car_data[[target]]
+1745089538047:)
+1745089538048:# visualize
+1745089538049:str(car_data)
+1745089538049:summary(car_encoded)
+1745089538050:features <- setdiff(names(car_encoded), "class")
+1745089538051:# start a flex container
+1745089538051:cat("<div style='display:flex; flex-wrap:wrap;'>\n")
+1745089538053:for(feat in features){
+1745089538054:# compute contingency
+1745089538054:tab <- table(car_encoded[[feat]], car_encoded$class)
+1745089538055:# each table gets ~48% width, 1% margin
+1745089538056:cat("<div style='flex:0 0 48%; margin:1%;'>\n")
+1745089538057:# print the kable inside
+1745089538058:print(
+1745089538058:kable(
+1745089538059:tab,
+1745089538059:caption   = paste0("“", feat, "” by Class"),
+1745089538060:row.names = TRUE,
+1745089538060:col.names = c("Encoded", "unacc", "acc", "good", "vgood")
+1745089538061:)
+1745089538061:)
+1745089538062:cat("</div>\n")
+1745089538062:}
+1745089538063:# close flex container
+1745089538064:cat("</div>\n")
+1745089538065:# standardization scaling
+1745089538066:set.seed(123)
+1745089538066:train_index <- sample(1:nrow(car_encoded), 0.8 * nrow(car_encoded))
+1745089538067:train_data <- car_encoded[train_index, ]
+1745089538067:test_data <- car_encoded[-train_index, ]
+1745089538068:preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+1745089538069:train_scaled <- predict(preproc, train_data)
+1745089538069:test_scaled <- predict(preproc, test_data)
+1745089538070:summary(train_scaled)
+1745089538071:# over-sampling
+1745089538072:cat("Class distribution BEFORE balancing:\n")
+1745089538072:print(table(train_scaled$class))
+1745089538073:train_balanced <- upSample(x = train_scaled[, -ncol(train_scaled)],
+1745089538073:y = train_scaled[, ncol(train_scaled)],
+1745089538074:yname = "class")
+1745089538074:cat("\nClass distribution AFTER SMOTE:\n")
+1745089538075:print(table(train_balanced$class))
+1745089538076:# === MODELING ===
+1745089538077:# random forest
+1745089538077:rf_ctrl <- trainControl(method = "repeatedcv",
+1745089538078:number = 3,
+1745089538078:classProbs = TRUE)
+1745089538079:rf_model <- train(
+1745089538079:class ~ .,
+1745089538080:data    = train_balanced,
+1745089538081:method  = "rf",
+1745089538081:trControl = rf_ctrl,
+1745089538082:tuneLength = 5
+1745089538082:)
+1745089538083:rf_pred <- predict(rf_model, newdata = test_scaled)
+1745089538084:rf_cm   <- confusionMatrix(rf_pred, test_scaled$class)
+1745089538084:print(rf_model)
+1745089538085:print(rf_cm)
+1745089538086:# SVM
+1745089538087:svm_ctrl <- trainControl(method = "repeatedcv",
+1745089538087:number = 3,
+1745089538088:classProbs = TRUE)
+1745089538088:svm_model <- train(
+1745089538089:class ~ .,
+1745089538089:data    = train_balanced,
+1745089538090:method  = "svmRadial",
+1745089538091:trControl = svm_ctrl,
+1745089538091:tuneLength = 5
+1745089538092:)
+1745089538093:svm_pred <- predict(svm_model, newdata = test_scaled)
+1745089538093:svm_cm   <- confusionMatrix(svm_pred, test_scaled$class)
+1745089538094:print(svm_model)
+1745089538094:print(svm_cm)
+1745089548794:# import library
+1745089548794:if (!require("ggplot2")) {
+1745089548794:install.packages("ggplot2", dependencies = TRUE)
+1745089548794:}
+1745089548808:if (!require("vcd")) {
+1745089548808:install.packages("vcd", dependencies = TRUE)
+1745089548808:}
+1745089548917:if (!require("ca")) {
+1745089548917:install.packages("ca", dependencies = TRUE)
+1745089548917:}
+1745089548933:if (!require("caret")) {
+1745089548933:install.packages("caret", dependencies = TRUE)
+1745089548933:}
+1745089548949:if (!require("smotefamily")) {
+1745089548950:install.packages("smotefamily", dependencies = TRUE)
+1745089548950:}
+1745089549047:if (!require("corrplot")) {
+1745089549048:install.packages("corrplot", dependencies = TRUE)
+1745089549048:}
+1745089549072:if (!require("txtplot")) {
+1745089549072:install.packages("txtplot", dependencies = TRUE)
+1745089549072:}
+1745089549085:if (!require("GGally")) {
+1745089549085:install.packages("GGally", dependencies = TRUE)
+1745089549085:}
+1745089549128:library(ggplot2)
+1745089549128:library(vcd)
+1745089549128:library(RColorBrewer)
+1745089549136:library(scales)
+1745089549145:library(dplyr)
+1745089549159:library(ca)
+1745089549160:library(gridExtra)
+1745089549175:library(caret)
+1745089549175:library(smotefamily)
+1745089549176:library(corrplot)
+1745089549176:library(txtplot)
+1745089549176:library(GGally)
+1745089549176:library(tidyr)
+1745089549189:library(patchwork)
+1745089549219:# load data
+1745089549219:col_names <- c("buying", "maint", "doors", "persons", "lug_boot", "safety", "class")
+1745089549219:car_data <- read.csv("car.data", header = FALSE, col.names = col_names, stringsAsFactors = TRUE)
+1745089549222:# set factor level
+1745089549223:car_data$buying <- factor(car_data$buying,
+1745089549223:levels = c("low", "med", "high", "vhigh"),
+1745089549223:ordered = TRUE)
+1745089549223:car_data$maint <- factor(car_data$maint,
+1745089549223:levels = c("low", "med", "high", "vhigh"),
+1745089549223:ordered = TRUE)
+1745089549224:car_data$lug_boot <- factor(car_data$lug_boot,
+1745089549224:levels = c("small", "med", "big"),
+1745089549224:ordered = TRUE)
+1745089549224:car_data$safety <- factor(car_data$safety,
+1745089549224:levels = c("low", "med", "high"),
+1745089549224:ordered = TRUE)
+1745089549224:car_data$class <- factor(car_data$class,
+1745089549225:levels = c("unacc", "acc", "good", "vgood"),
+1745089549225:ordered = TRUE)
+1745089549225:# === EDA ===
+1745089549225:# general explore
+1745089549225:str(car_data)
+1745089549231:summary(car_data)
+1745089549234:# class distribution analysis
+1745089549234:png("result_1_distribution.png", width = 800, height = 600, res = 100)
+1745089549257:class_dist <- table(car_data$class)
+1745089549258:prop_dist <- prop.table(class_dist) * 100
+1745089549258:barplot(prop_dist,
+1745089549258:main = "Car Evaluation Class Distribution",
+1745089549258:xlab = "Evaluation Category",
+1745089549258:ylab = "Percentage (%)",
+1745089549258:col = palette("Paired")[1:4],
+1745089549258:ylim = c(0, 75),
+1745089549258:cex.names = 1.2,
+1745089549258:cex.lab = 1.2)
+1745089549295:text(x = seq_along(prop_dist),
+1745089549295:y = prop_dist + 2,
+1745089549295:labels = paste0(round(prop_dist, 1), "%"),
+1745089549295:col = "black",
+1745089549295:cex = 1.0)
+1745089549296:dev.off()
+1745089549316:# chi-square (association between feature & target)
+1745089549316:features <- setdiff(names(car_data), "class")
+1745089549316:chi_results <- lapply(features, function(feat) {
+1745089549316:tbl <- table(car_data[[feat]], car_data$class)
+1745089549316:chi_test <- chisq.test(tbl)
+1745089549316:data.frame(Feature = feat,
+1745089549316:P_Value = chi_test$p.value,
+1745089549316:Chi_Squared = chi_test$statistic)
+1745089549316:})
+1745089549325:do.call(rbind, chi_results)
+1745089549327:# visualize distribution
+1745089549327:plot_data <- car_data %>%
+1745089549327:mutate(class = factor(class, levels = c("unacc", "acc", "good", "vgood")))
+1745089549333:features <- setdiff(names(plot_data), "class")
+1745089549333:plots <- lapply(features, function(feature) {
+1745089549333:ggplot(plot_data, aes_string(x = feature, fill = "class")) +
+1745089549334:geom_bar(position = "fill") +
+1745089549334:labs(title = paste("Distribution by", feature), y = "Proportion") +
+1745089549334:scale_fill_brewer(palette = "Paired") +
+1745089549334:theme(axis.text.x = element_text(angle = 45, hjust = 1))
+1745089549334:})
+1745089549507:png("result_2_distribution.png", width = 1600, height = 1200, res = 100)
+1745089549507:do.call(grid.arrange, c(plots, ncol = 2))
+1745089550557:dev.off()
+1745089550652:# === PRE-PROCESSING ===
+1745089550652:# ordinal encoding
+1745089550652:car_data <- car_data %>%
+1745089550652:mutate(
+1745089550652:buying = factor(buying, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745089550653:maint = factor(maint, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745089550653:safety = factor(safety, levels = c("low", "med", "high"), ordered = TRUE),
+1745089550653:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE),
+1745089550653:doors = factor(doors, levels = c("2", "3", "4", "5more"), ordered = TRUE),
+1745089550653:persons = factor(persons, levels = c("2", "4", "more"), ordered = TRUE),
+1745089550653:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE)
+1745089550653:)
+1745089550663:ordinal_features <- setdiff(names(car_data), "class")
+1745089550663:target <- "class"
+1745089550663:car_encoded <- data.frame(
+1745089550663:lapply(car_data[, ordinal_features], as.integer),
+1745089550664:class = car_data[[target]]
+1745089550664:)
+1745089550665:# visualize
+1745089550665:str(car_data)
+1745089550671:summary(car_encoded)
+1745089550675:features <- setdiff(names(car_encoded), "class")
+1745089550675:# start a flex container
+1745089550675:cat("<div style='display:flex; flex-wrap:wrap;'>\n")
+1745089550675:for(feat in features){
+1745089550675:# compute contingency
+1745089550675:tab <- table(car_encoded[[feat]], car_encoded$class)
+1745089550676:# each table gets ~48% width, 1% margin
+1745089550676:cat("<div style='flex:0 0 48%; margin:1%;'>\n")
+1745089550676:# print the kable inside
+1745089550676:print(
+1745089550676:kable(
+1745089550676:tab,
+1745089550676:caption   = paste0("“", feat, "” by Class"),
+1745089550677:row.names = TRUE,
+1745089550677:col.names = c("Encoded", "unacc", "acc", "good", "vgood")
+1745089550677:)
+1745089550677:)
+1745089550677:cat("</div>\n")
+1745089550677:}
+1745089559485:features <- setdiff(names(car_encoded), "class")
+1745089561787:library(knitr)
+1745089565637:library(knitr)
+1745089565637:features <- setdiff(names(car_encoded), "class")
+1745089565637:# start a flex container
+1745089565638:cat("<div style='display:flex; flex-wrap:wrap;'>\n")
+1745089565638:for(feat in features){
+1745089565638:# compute contingency
+1745089565639:tab <- table(car_encoded[[feat]], car_encoded$class)
+1745089565639:# each table gets ~48% width, 1% margin
+1745089565639:cat("<div style='flex:0 0 48%; margin:1%;'>\n")
+1745089565640:# print the kable inside
+1745089565640:print(
+1745089565640:kable(
+1745089565641:tab,
+1745089565641:caption   = paste0("“", feat, "” by Class"),
+1745089565641:row.names = TRUE,
+1745089565641:col.names = c("Encoded", "unacc", "acc", "good", "vgood")
+1745089565642:)
+1745089565642:)
+1745089565642:cat("</div>\n")
+1745089565643:}
+1745089565665:# close flex container
+1745089565665:cat("</div>\n")
+1745089599036:# open a 2‑column CSS container
+1745089599036:cat("<div style='column-count:2; column-gap:1em;'>\n")
+1745089599036:for (feat in features) {
+1745089599036:tab <- table(car_encoded[[feat]], car_encoded$class)
+1745089599037:print(
+1745089599037:kable(
+1745089599037:tab,
+1745089599037:caption   = paste0("“", feat, "” by Class"),
+1745089599037:row.names = TRUE,
+1745089599037:col.names = c("Encoded", "unacc", "acc", "good", "vgood")
+1745089599037:)
+1745089599037:)
+1745089599037:cat("<br/>\n")  # small break between tables
+1745089599038:}
+1745089599057:cat("</div>\n")
+1745089662466:library(kableExtra)
+1745089690314:if (!require("kableExtra")) {
+1745089690314:install.packages("kableExtra", dependencies = TRUE)
+1745089690314:}
+1745089704347:if (!require("htmltools")) {
+1745089704347:install.packages("htmltools", dependencies = TRUE)
+1745089704347:}
+1745089704366:if (!require("webshot2")) {
+1745089704366:install.packages("webshot2", dependencies = TRUE)
+1745089704366:}
+1745089709745:library(kableExtra)
+1745089709835:library(htmltools)
+1745089709835:library(webshot2)
+1745089715944:# 1️⃣ Make your kable object
+1745089715944:tab <- table(car_encoded$safety, car_encoded$class)
+1745089715944:kt  <- kable(tab, format = "html",
+1745089715945:caption   = "Safety Levels by Class",
+1745089715945:row.names = TRUE,
+1745089715945:col.names = c("Encoded", "unacc", "acc", "good", "vgood")) %>%
+1745089715945:kable_styling(full_width = FALSE)
+1745089715964:# 2️⃣ Write it out as a self‑contained HTML file
+1745089715964:tmp_html <- tempfile(fileext = ".html")
+1745089715964:save_html(HTML(kt), file = tmp_html)
+1745089715966:# 3️⃣ Screenshot the HTML (selecting the <table> node)
+1745089715967:#     – phantomjs is not needed; webshot2 uses headless Chrome
+1745089715967:webshot(tmp_html,
+1745089715967:file     = "safety_by_class.png",
+1745089715967:selector = "table",
+1745089715967:vwidth   = 800)
+1745089778595:features <- setdiff(names(car_encoded), "class")
+1745089778595:for(i in seq(1, length(features), by = 2)) {
+1745089778596:# pick feature 1 and feature 2 (if it exists)
+1745089778596:f1 <- features[i]
+1745089778596:f2 <- features[i+1L]
+1745089778596:# capture their printed tables
+1745089778597:t1 <- capture.output(print(table(car_encoded[[f1]], car_encoded$class)))
+1745089778597:t2 <- if(!is.na(f2)) capture.output(print(table(car_encoded[[f2]], car_encoded$class)))
+1745089778598:else rep("", length(t1))
+1745089778598:# make sure they have the same number of lines
+1745089778598:t2 <- c(t2, rep("", length(t1) - length(t2)))
+1745089778599:# figure out how wide the first column needs to be
+1745089778599:w <- max(nchar(t1, "width")) + 2
+1745089778599:# header
+1745089778599:cat(sprintf("\n%s vs class%s%s vs class\n\n",
+1745089778600:f1,
+1745089778600:if(!is.na(f2)) "   |   " else "",
+1745089778600:if(!is.na(f2)) f2 else ""))
+1745089778600:# print line‑by‑line with padding
+1745089778601:for(j in seq_along(t1)) {
+1745089778601:cat(format(t1[j], width = w, justify = "left"), t2[j], "\n")
+1745089778601:}
+1745089778601:}
+1745089857923:features <- setdiff(names(car_encoded), "class")
+1745089857923:for (feat in features) {
+1745089857923:cat("\n---", feat, "vs. class ---\n")
+1745089857923:print(table(car_encoded[[feat]], car_encoded$class))
+1745089857923:}
+1745090348369:et.seed(123)
+1745090352685:set.seed(123)
+1745090352685:train_index <- sample(1:nrow(car_encoded), 0.8 * nrow(car_encoded))
+1745090352686:train_data <- car_encoded[train_index, ]
+1745090352686:test_data <- car_encoded[-train_index, ]
+1745090352687:preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+1745090352697:train_scaled <- predict(preproc, train_data)
+1745090352703:test_scaled <- predict(preproc, test_data)
+1745090352706:summary(train_scaled)
+1745090467948:preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+1745090467955:train_original <- train_data[, -ncol(train_data)]
+1745090467955:train_scaled <- predict(preproc, train_data)
+1745090467960:test_scaled <- predict(preproc, test_data)
+1745090467962:# visualize
+1745090467962:scaling_comparison <- bind_rows(
+1745090467962:list(Original = train_original, Scaled = train_scaled),
+1745090467963:.id = "Group"
+1745090467963:) %>%
+1745090467963:pivot_longer(cols = everything(), names_to = "Feature", values_to = "Value")
+1745090554882:scaling_comparison <- bind_rows(
+1745090554882:list(Original = train_original, Scaled = train_scaled),
+1745090554883:.id = "Group"
+1745090554883:) %>%
+1745090554883:# Exclude "Group" from pivoting to avoid type conflicts
+1745090554884:pivot_longer(
+1745090554884:cols = -Group,  # Fix: Exclude "Group" column
+1745090554884:names_to = "Feature",
+1745090554884:values_to = "Value"
+1745090554884:)
+1745090568795:preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+1745090568800:train_scaled <- predict(preproc, train_data)[, -ncol(train_data)]  # Exclude class
+1745090568803:train_original <- train_data[, -ncol(train_data)]  # Original features
+1745090568803:# Combine data for comparison
+1745090568803:scaling_comparison <- bind_rows(
+1745090568804:list(Original = train_original, Scaled = train_scaled),
+1745090568804:.id = "Group"
+1745090568804:) %>%
+1745090568804:# Exclude "Group" from pivoting to avoid type conflicts
+1745090568804:pivot_longer(
+1745090568804:cols = -Group,  # Fix: Exclude "Group" column
+1745090568804:names_to = "Feature",
+1745090568804:values_to = "Value"
+1745090568804:)
+1745090568811:# Plot density distributions
+1745090568811:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090568811:geom_density(alpha = 0.5) +
+1745090568812:facet_wrap(~ Feature, scales = "free") +
+1745090568812:labs(
+1745090568812:title = "Feature Distributions: Before vs. After Scaling",
+1745090568812:x = "Value",
+1745090568812:y = "Density",
+1745090568812:fill = "Data State"
+1745090568812:) +
+1745090568813:theme_minimal()
+1745090617977:# import library
+1745090617977:if (!require("ggplot2")) {
+1745090617978:install.packages("ggplot2", dependencies = TRUE)
+1745090617978:}
+1745090617978:if (!require("vcd")) {
+1745090617978:install.packages("vcd", dependencies = TRUE)
+1745090617979:}
+1745090617979:if (!require("ca")) {
+1745090617979:install.packages("ca", dependencies = TRUE)
+1745090617979:}
+1745090617979:if (!require("caret")) {
+1745090617979:install.packages("caret", dependencies = TRUE)
+1745090617979:}
+1745090617980:if (!require("smotefamily")) {
+1745090617980:install.packages("smotefamily", dependencies = TRUE)
+1745090617980:}
+1745090617980:if (!require("corrplot")) {
+1745090617980:install.packages("corrplot", dependencies = TRUE)
+1745090617980:}
+1745090617980:if (!require("txtplot")) {
+1745090617980:install.packages("txtplot", dependencies = TRUE)
+1745090617980:}
+1745090617981:if (!require("GGally")) {
+1745090617981:install.packages("GGally", dependencies = TRUE)
+1745090617981:}
+1745090617981:if (!require("kableExtra")) {
+1745090617981:install.packages("kableExtra", dependencies = TRUE)
+1745090617982:}
+1745090617982:if (!require("htmltools")) {
+1745090617982:install.packages("htmltools", dependencies = TRUE)
+1745090617982:}
+1745090617982:if (!require("webshot2")) {
+1745090617983:install.packages("webshot2", dependencies = TRUE)
+1745090617983:}
+1745090617983:library(ggplot2)
+1745090617983:library(vcd)
+1745090617984:library(RColorBrewer)
+1745090617984:library(scales)
+1745090617984:library(dplyr)
+1745090617985:library(ca)
+1745090617985:library(gridExtra)
+1745090617985:library(caret)
+1745090617985:library(smotefamily)
+1745090617986:library(corrplot)
+1745090617986:library(txtplot)
+1745090617986:library(GGally)
+1745090617986:library(tidyr)
+1745090617987:library(patchwork)
+1745090617987:library(knitr)
+1745090617987:library(kableExtra)
+1745090617987:library(htmltools)
+1745090617987:library(webshot2)
+1745090617988:# load data
+1745090617988:col_names <- c("buying", "maint", "doors", "persons", "lug_boot", "safety", "class")
+1745090617988:car_data <- read.csv("car.data", header = FALSE, col.names = col_names, stringsAsFactors = TRUE)
+1745090617992:# set factor level
+1745090617992:car_data$buying <- factor(car_data$buying,
+1745090617992:levels = c("low", "med", "high", "vhigh"),
+1745090617992:ordered = TRUE)
+1745090617992:car_data$maint <- factor(car_data$maint,
+1745090617992:levels = c("low", "med", "high", "vhigh"),
+1745090617993:ordered = TRUE)
+1745090617993:car_data$lug_boot <- factor(car_data$lug_boot,
+1745090617993:levels = c("small", "med", "big"),
+1745090617993:ordered = TRUE)
+1745090617993:car_data$safety <- factor(car_data$safety,
+1745090617994:levels = c("low", "med", "high"),
+1745090617994:ordered = TRUE)
+1745090617994:car_data$class <- factor(car_data$class,
+1745090617994:levels = c("unacc", "acc", "good", "vgood"),
+1745090617994:ordered = TRUE)
+1745090617995:# === EDA ===
+1745090617995:# general explore
+1745090617995:str(car_data)
+1745090618003:summary(car_data)
+1745090618005:# class distribution analysis
+1745090618005:png("result_1_distribution.png", width = 800, height = 600, res = 100)
+1745090618006:class_dist <- table(car_data$class)
+1745090618006:prop_dist <- prop.table(class_dist) * 100
+1745090618006:barplot(prop_dist,
+1745090618007:main = "Car Evaluation Class Distribution",
+1745090618007:xlab = "Evaluation Category",
+1745090618007:ylab = "Percentage (%)",
+1745090618007:col = palette("Paired")[1:4],
+1745090618007:ylim = c(0, 75),
+1745090618007:cex.names = 1.2,
+1745090618007:cex.lab = 1.2)
+1745090618010:text(x = seq_along(prop_dist),
+1745090618010:y = prop_dist + 2,
+1745090618010:labels = paste0(round(prop_dist, 1), "%"),
+1745090618010:col = "black",
+1745090618010:cex = 1.0)
+1745090618011:dev.off()
+1745090618033:# chi-square (association between feature & target)
+1745090618033:features <- setdiff(names(car_data), "class")
+1745090618033:chi_results <- lapply(features, function(feat) {
+1745090618034:tbl <- table(car_data[[feat]], car_data$class)
+1745090618034:chi_test <- chisq.test(tbl)
+1745090618034:data.frame(Feature = feat,
+1745090618034:P_Value = chi_test$p.value,
+1745090618034:Chi_Squared = chi_test$statistic)
+1745090618034:})
+1745090618047:do.call(rbind, chi_results)
+1745090618049:# visualize distribution
+1745090618049:plot_data <- car_data %>%
+1745090618049:mutate(class = factor(class, levels = c("unacc", "acc", "good", "vgood")))
+1745090618052:features <- setdiff(names(plot_data), "class")
+1745090618052:plots <- lapply(features, function(feature) {
+1745090618052:ggplot(plot_data, aes_string(x = feature, fill = "class")) +
+1745090618052:geom_bar(position = "fill") +
+1745090618052:labs(title = paste("Distribution by", feature), y = "Proportion") +
+1745090618052:scale_fill_brewer(palette = "Paired") +
+1745090618053:theme(axis.text.x = element_text(angle = 45, hjust = 1))
+1745090618053:})
+1745090618098:png("result_2_distribution.png", width = 1600, height = 1200, res = 100)
+1745090618099:do.call(grid.arrange, c(plots, ncol = 2))
+1745090618923:dev.off()
+1745090619009:# === PRE-PROCESSING ===
+1745090619010:# ordinal encoding
+1745090619010:car_data <- car_data %>%
+1745090619010:mutate(
+1745090619010:buying = factor(buying, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745090619010:maint = factor(maint, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745090619010:safety = factor(safety, levels = c("low", "med", "high"), ordered = TRUE),
+1745090619010:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE),
+1745090619010:doors = factor(doors, levels = c("2", "3", "4", "5more"), ordered = TRUE),
+1745090619011:persons = factor(persons, levels = c("2", "4", "more"), ordered = TRUE),
+1745090619011:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE)
+1745090619011:)
+1745090619014:ordinal_features <- setdiff(names(car_data), "class")
+1745090619014:target <- "class"
+1745090619014:car_encoded <- data.frame(
+1745090619014:lapply(car_data[, ordinal_features], as.integer),
+1745090619014:class = car_data[[target]]
+1745090619015:)
+1745090619015:# visualize
+1745090619015:str(car_data)
+1745090619023:summary(car_encoded)
+1745090619026:features <- setdiff(names(car_encoded), "class")
+1745090619027:for (feat in features) {
+1745090619027:cat("\n---", feat, "vs. class ---\n")
+1745090619027:print(table(car_encoded[[feat]], car_encoded$class))
+1745090619027:}
+1745090619038:# standardization scaling
+1745090619038:set.seed(123)
+1745090619038:train_index <- sample(1:nrow(car_encoded), 0.8 * nrow(car_encoded))
+1745090619039:train_data <- car_encoded[train_index, ]
+1745090619039:test_data <- car_encoded[-train_index, ]
+1745090619039:preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+1745090619043:train_original <- train_data[, -ncol(train_data)]
+1745090619043:train_scaled <- predict(preproc, train_data)[, -ncol(train_data)]
+1745090619046:test_scaled <- predict(preproc, test_data)
+1745090619049:# visualize
+1745090619049:scaling_comparison <- bind_rows(
+1745090619049:list(Original = train_original, Scaled = train_scaled),
+1745090619049:.id = "Group"
+1745090619049:) %>%
+1745090619049:pivot_longer(
+1745090619050:cols = -Group,
+1745090619050:names_to = "Feature",
+1745090619050:values_to = "Value"
+1745090619050:)
+1745090619055:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090619055:geom_density(alpha = 0.5) +
+1745090619055:facet_wrap(~ Feature, scales = "free") +
+1745090619055:labs(
+1745090619055:title = "Feature Distributions: Before vs. After Scaling",
+1745090619056:x = "Value",
+1745090619056:y = "Density",
+1745090619056:fill = "Data State"
+1745090619056:) +
+1745090619056:theme_minimal()
+1745090619506:# over-sampling
+1745090619507:cat("Class distribution BEFORE balancing:\n")
+1745090619507:print(table(train_scaled$class))
+1745090619507:train_balanced <- upSample(x = train_scaled[, -ncol(train_scaled)],
+1745090619507:y = train_scaled[, ncol(train_scaled)],
+1745090619507:yname = "class")
+1745090619508:cat("\nClass distribution AFTER SMOTE:\n")
+1745090619508:print(table(train_balanced$class))
+1745090619509:# === MODELING ===
+1745090619509:# random forest
+1745090619509:rf_ctrl <- trainControl(method = "repeatedcv",
+1745090619509:number = 3,
+1745090619509:classProbs = TRUE)
+1745090619510:rf_model <- train(
+1745090619510:class ~ .,
+1745090619510:data    = train_balanced,
+1745090619510:method  = "rf",
+1745090619510:trControl = rf_ctrl,
+1745090619510:tuneLength = 5
+1745090619510:)
+1745090721895:scaling_comparison <- bind_rows(
+1745090721895:list(Original = train_original, Scaled = train_scaled),
+1745090721895:.id = "Group"
+1745090721895:) %>%
+1745090721895:pivot_longer(
+1745090721895:cols = -Group,
+1745090721895:names_to = "Feature",
+1745090721896:values_to = "Value"
+1745090721896:)
+1745090721900:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090721900:geom_density(alpha = 0.5) +
+1745090721900:facet_wrap(~ Feature, scales = "free") +
+1745090721900:scale_fill_viridis_d(option = "plasma", begin = 0.2, end = 0.8) +
+1745090721901:labs(
+1745090721901:title = "Feature Distributions: Before vs. After Scaling",
+1745090721901:x = "Value",
+1745090721901:y = "Density",
+1745090721901:fill = "Data State"
+1745090721901:) +
+1745090721902:theme_minimal()
+1745090734244:scaling_comparison <- bind_rows(
+1745090734244:list(Original = train_original, Scaled = train_scaled),
+1745090734244:.id = "Group"
+1745090734244:) %>%
+1745090734244:pivot_longer(
+1745090734244:cols = -Group,
+1745090734245:names_to = "Feature",
+1745090734245:values_to = "Value"
+1745090734245:)
+1745090734250:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090734250:geom_density(alpha = 0.5) +
+1745090734250:facet_wrap(~ Feature, scales = "free") +
+1745090734250:scale_fill_viridis_d(option = "Set1", begin = 0.2, end = 0.8) +
+1745090734250:labs(
+1745090734251:title = "Feature Distributions: Before vs. After Scaling",
+1745090734251:x = "Value",
+1745090734251:y = "Density",
+1745090734251:fill = "Data State"
+1745090734251:) +
+1745090734251:theme_minimal()
+1745090770797:# visualize
+1745090770797:scaling_comparison <- bind_rows(
+1745090770798:list(Original = train_original, Scaled = train_scaled),
+1745090770798:.id = "Group"
+1745090770798:) %>%
+1745090770798:pivot_longer(
+1745090770798:cols = -Group,
+1745090770799:names_to = "Feature",
+1745090770799:values_to = "Value"
+1745090770799:)
+1745090770806:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090770806:geom_density(alpha = 0.2) +
+1745090770806:facet_wrap(~ Feature, scales = "free") +
+1745090770807:scale_fill_viridis_d(option = "Set1", begin = 0.2, end = 0.8) +
+1745090770807:labs(
+1745090770807:title = "Feature Distributions: Before vs. After Scaling",
+1745090770807:x = "Value",
+1745090770807:y = "Density",
+1745090770808:fill = "Data State"
+1745090770808:) +
+1745090770808:theme_minimal()
+1745090783050:# visualize
+1745090783050:scaling_comparison <- bind_rows(
+1745090783050:list(Original = train_original, Scaled = train_scaled),
+1745090783050:.id = "Group"
+1745090783050:) %>%
+1745090783050:pivot_longer(
+1745090783051:cols = -Group,
+1745090783051:names_to = "Feature",
+1745090783051:values_to = "Value"
+1745090783051:)
+1745090783056:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090783056:geom_density(alpha = 0.3) +
+1745090783056:facet_wrap(~ Feature, scales = "free") +
+1745090783056:labs(
+1745090783056:title = "Feature Distributions: Before vs. After Scaling",
+1745090783056:x = "Value",
+1745090783056:y = "Density",
+1745090783056:fill = "Data State"
+1745090783057:) +
+1745090783057:theme_minimal()
+1745090800928:scaling_comparison <- bind_rows(
+1745090800928:list(Original = train_original, Scaled = train_scaled),
+1745090800928:.id = "Group"
+1745090800928:) %>%
+1745090800928:pivot_longer(
+1745090800928:cols = -Group,
+1745090800929:names_to = "Feature",
+1745090800929:values_to = "Value"
+1745090800929:)
+1745090800936:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090800936:geom_density(alpha = 0.3) +
+1745090800936:facet_wrap(~ Feature, scales = "free") +
+1745090800936:geom_point(color = "firebrick") +
+1745090800937:labs(
+1745090800937:title = "Feature Distributions: Before vs. After Scaling",
+1745090800937:x = "Value",
+1745090800937:y = "Density",
+1745090800937:fill = "Data State"
+1745090800937:) +
+1745090800937:theme_minimal()
+1745090859833:scaling_comparison <- bind_rows(
+1745090859834:list(Original = train_original, Scaled = train_scaled),
+1745090859834:.id = "Group"
+1745090859834:) %>%
+1745090859834:pivot_longer(
+1745090859834:cols = -Group,
+1745090859835:names_to = "Feature",
+1745090859835:values_to = "Value"
+1745090859835:)
+1745090859841:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090859841:geom_density(alpha = 0.3) +
+1745090859841:facet_wrap(~ Feature, scales = "free") +
+1745090859841:labs(
+1745090859842:title = "Feature Distributions: Before vs. After Scaling",
+1745090859842:x = "Value",
+1745090859842:y = "Density",
+1745090859842:fill = "Data State"
+1745090859842:)
+1745090877103:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090877103:geom_density(alpha = 0.3) +
+1745090877104:facet_wrap(~ Feature, scales = "free") +
+1745090877104:scale_fill_npg() +
+1745090877104:labs(
+1745090877104:title = "Feature Distributions: Before vs. After Scaling",
+1745090877104:x = "Value",
+1745090877104:y = "Density",
+1745090877105:fill = "Data State"
+1745090877105:) +
+1745090877105:theme_minimal()
+1745090893771:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090893772:geom_density(alpha = 0.3) +
+1745090893772:facet_wrap(~ Feature, scales = "free") +
+1745090893772:scale_fill_grey(start = 0.3, end = 0.7) +
+1745090893772:labs(
+1745090893772:title = "Feature Distributions: Before vs. After Scaling",
+1745090893772:x = "Value",
+1745090893772:y = "Density",
+1745090893772:fill = "Data State"
+1745090893773:) +
+1745090893773:theme_minimal()
+1745090912211:library(ggsci)
+1745090925200:if (!require("ggsci")) {
+1745090925200:install.packages("ggsci", dependencies = TRUE)
+1745090925200:}
+1745090928787:library(ggsci)
+1745090935131:scaling_comparison <- bind_rows(
+1745090935131:list(Original = train_original, Scaled = train_scaled),
+1745090935131:.id = "Group"
+1745090935131:) %>%
+1745090935131:pivot_longer(
+1745090935131:cols = -Group,
+1745090935132:names_to = "Feature",
+1745090935132:values_to = "Value"
+1745090935132:)
+1745090935137:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090935138:geom_density(alpha = 0.3) +
+1745090935138:facet_wrap(~ Feature, scales = "free") +
+1745090935138:scale_fill_npg() +
+1745090935138:labs(
+1745090935138:title = "Feature Distributions: Before vs. After Scaling",
+1745090935138:x = "Value",
+1745090935138:y = "Density",
+1745090935138:fill = "Data State"
+1745090935139:) +
+1745090935139:theme_minimal()
+1745090975604:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745090975604:geom_density(alpha = 0.3) +
+1745090975604:facet_wrap(~ Feature, scales = "free") +
+1745090975604:theme_fivethirtyeight() +
+1745090975605:labs(
+1745090975605:title = "Feature Distributions: Before vs. After Scaling",
+1745090975605:x = "Value",
+1745090975605:y = "Density",
+1745090975605:fill = "Data State"
+1745090975605:) +
+1745090975606:theme_minimal()
+1745090987378:library(ggthemes)
+1745090996825:if (!require("ggthemes")) {
+1745090996826:install.packages("ggthemes", dependencies = TRUE)
+1745090996826:}
+1745091002165:library(ggthemes)
+1745091007244:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091007244:geom_density(alpha = 0.3) +
+1745091007244:facet_wrap(~ Feature, scales = "free") +
+1745091007245:theme_fivethirtyeight() +
+1745091007245:labs(
+1745091007245:title = "Feature Distributions: Before vs. After Scaling",
+1745091007246:x = "Value",
+1745091007246:y = "Density",
+1745091007246:fill = "Data State"
+1745091007246:) +
+1745091007246:theme_minimal()
+1745091018840:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091018840:geom_density(alpha = 0.3) +
+1745091018841:facet_wrap(~ Feature, scales = "free") +
+1745091018841:theme_excel() +
+1745091018841:labs(
+1745091018841:title = "Feature Distributions: Before vs. After Scaling",
+1745091018841:x = "Value",
+1745091018841:y = "Density",
+1745091018842:fill = "Data State"
+1745091018842:) +
+1745091018842:theme_minimal()
+1745091036788:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091036788:geom_density(alpha = 0.3) +
+1745091036788:facet_wrap(~ Feature, scales = "free") +
+1745091036788:theme_excel() +
+1745091036789:scale_fill_excel() +
+1745091036789:labs(
+1745091036789:title = "Feature Distributions: Before vs. After Scaling",
+1745091036789:x = "Value",
+1745091036790:y = "Density",
+1745091036790:fill = "Data State"
+1745091036790:) +
+1745091036790:theme_minimal()
+1745091052303:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091052304:geom_density(alpha = 0.3) +
+1745091052304:facet_wrap(~ Feature, scales = "free") +
+1745091052304:theme_fivethirtyeight() +
+1745091052304:scale_fill_fivethirtyeight() +
+1745091052304:labs(
+1745091052304:title = "Feature Distributions: Before vs. After Scaling",
+1745091052304:x = "Value",
+1745091052304:y = "Density",
+1745091052305:fill = "Data State"
+1745091052305:) +
+1745091052305:theme_minimal()
+1745091064622:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091064622:geom_density(alpha = 0.3) +
+1745091064623:facet_wrap(~ Feature, scales = "free") +
+1745091064623:theme_economist() +
+1745091064623:scale_fill_economist() +
+1745091064623:labs(
+1745091064623:title = "Feature Distributions: Before vs. After Scaling",
+1745091064624:x = "Value",
+1745091064624:y = "Density",
+1745091064624:fill = "Data State"
+1745091064624:) +
+1745091064624:theme_minimal()
+1745091138217:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091138217:geom_density(alpha = 0.3) +
+1745091138217:facet_wrap(~ Feature, scales = "free") +
+1745091138217:scale_fill_manual(values = c(
+1745091138217:"Original" = "#2B7CD3",  # Rich blue
+1745091138217:"Scaled" = "#E69F00"     # Vibrant orange
+1745091138218:))
+1745091138696:labs(
+1745091138696:title = "Feature Distributions: Before vs. After Scaling",
+1745091138696:x = "Value",
+1745091138696:y = "Density",
+1745091138696:fill = "Data State"
+1745091138696:) +
+1745091138696:theme_minimal()
+1745091188814:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091188815:geom_density(alpha = 0.3) +
+1745091188815:facet_wrap(~ Feature, scales = "free") +
+1745091188815:scale_fill_manual(values = c("Original" = "#66C2A5","Scaled" = "#2B7CD3"))
+1745091189314:labs(
+1745091189314:title = "Feature Distributions: Before vs. After Scaling",
+1745091189314:x = "Value",
+1745091189314:y = "Density",
+1745091189314:fill = "Data State"
+1745091189314:) +
+1745091189314:theme_minimal()
+1745091195822:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091195822:geom_density(alpha = 0.5) +
+1745091195822:facet_wrap(~ Feature, scales = "free") +
+1745091195822:scale_fill_manual(values = c("Original" = "#66C2A5","Scaled" = "#2B7CD3"))
+1745091196347:labs(
+1745091196347:title = "Feature Distributions: Before vs. After Scaling",
+1745091196347:x = "Value",
+1745091196348:y = "Density",
+1745091196348:fill = "Data State"
+1745091196348:) +
+1745091196348:theme_minimal()
+1745091231114:source("~/car_eval.R", echo=TRUE)
+1745091240871:ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091240871:geom_density(alpha = 0.3) +
+1745091240872:facet_wrap(~ Feature, scales = "free") +
+1745091240872:scale_fill_manual(values = c("Original" = "#29ff3b","Scaled" = "#2b92ff"))
+1745091241359:labs(
+1745091241359:title = "Feature Distributions: Before vs. After Scaling",
+1745091241359:x = "Value",
+1745091241359:y = "Density",
+1745091241359:fill = "Data State"
+1745091241359:) +
+1745091241359:theme_minimal()
+1745091313788:ggsave(filename = "result_3_scaling.png", plot = p)
+1745091324625:ggsave(filename = "result_3_scaling.png", plot = p,
+1745091324625:width = 12,  # Adjust width/height as needed
+1745091324625:height = 8,
+1745091324625:dpi = 300    # High resolution for clarity
+1745091324626:)
+1745091344580:p <- ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091344580:geom_density(alpha = 0.3) +
+1745091344580:facet_wrap(~ Feature, scales = "free") +
+1745091344580:scale_fill_manual(values = c("Original" = "#29ff3b","Scaled" = "#2b92ff"))
+1745091344588:labs(
+1745091344588:title = "Feature Distributions: Before vs. After Scaling",
+1745091344589:x = "Value",
+1745091344589:y = "Density",
+1745091344589:fill = "Data State"
+1745091344589:) +
+1745091344589:theme_minimal()
+1745091344594:ggsave(filename = "result_3_scaling.png", plot = p)
+1745091507155:# over-sampling
+1745091507155:cat("Class distribution BEFORE balancing:\n")
+1745091507155:print(table(train_scaled$class))
+1745091507156:train_balanced <- upSample(x = train_scaled[, -ncol(train_scaled)],
+1745091507156:y = train_scaled[, ncol(train_scaled)],
+1745091507156:yname = "class")
+1745091507157:cat("\nClass distribution AFTER SMOTE:\n")
+1745091507157:print(table(train_balanced$class))
+1745091515915:# import library
+1745091515915:if (!require("ggplot2")) {
+1745091515916:install.packages("ggplot2", dependencies = TRUE)
+1745091515916:}
+1745091515916:if (!require("vcd")) {
+1745091515916:install.packages("vcd", dependencies = TRUE)
+1745091515917:}
+1745091515917:if (!require("ca")) {
+1745091515917:install.packages("ca", dependencies = TRUE)
+1745091515917:}
+1745091515917:if (!require("caret")) {
+1745091515918:install.packages("caret", dependencies = TRUE)
+1745091515918:}
+1745091515918:if (!require("smotefamily")) {
+1745091515918:install.packages("smotefamily", dependencies = TRUE)
+1745091515918:}
+1745091515918:if (!require("corrplot")) {
+1745091515919:install.packages("corrplot", dependencies = TRUE)
+1745091515919:}
+1745091515919:if (!require("txtplot")) {
+1745091515919:install.packages("txtplot", dependencies = TRUE)
+1745091515920:}
+1745091515920:if (!require("GGally")) {
+1745091515920:install.packages("GGally", dependencies = TRUE)
+1745091515920:}
+1745091515921:if (!require("kableExtra")) {
+1745091515921:install.packages("kableExtra", dependencies = TRUE)
+1745091515921:}
+1745091515921:if (!require("htmltools")) {
+1745091515921:install.packages("htmltools", dependencies = TRUE)
+1745091515922:}
+1745091515922:if (!require("webshot2")) {
+1745091515922:install.packages("webshot2", dependencies = TRUE)
+1745091515922:}
+1745091515923:if (!require("ggsci")) {
+1745091515923:install.packages("ggsci", dependencies = TRUE)
+1745091515923:}
+1745091515923:if (!require("ggthemes")) {
+1745091515923:install.packages("ggthemes", dependencies = TRUE)
+1745091515923:}
+1745091515924:library(ggplot2)
+1745091515924:library(vcd)
+1745091515924:library(RColorBrewer)
+1745091515924:library(scales)
+1745091515925:library(dplyr)
+1745091515925:library(ca)
+1745091515925:library(gridExtra)
+1745091515925:library(caret)
+1745091515926:library(smotefamily)
+1745091515926:library(corrplot)
+1745091515926:library(txtplot)
+1745091515926:library(GGally)
+1745091515926:library(tidyr)
+1745091515927:library(patchwork)
+1745091515927:library(knitr)
+1745091515927:library(kableExtra)
+1745091515927:library(htmltools)
+1745091515928:library(webshot2)
+1745091515928:library(ggsci)
+1745091515928:library(ggthemes)
+1745091515928:# load data
+1745091515928:col_names <- c("buying", "maint", "doors", "persons", "lug_boot", "safety", "class")
+1745091515929:car_data <- read.csv("car.data", header = FALSE, col.names = col_names, stringsAsFactors = TRUE)
+1745091515932:# set factor level
+1745091515932:car_data$buying <- factor(car_data$buying,
+1745091515932:levels = c("low", "med", "high", "vhigh"),
+1745091515932:ordered = TRUE)
+1745091515933:car_data$maint <- factor(car_data$maint,
+1745091515933:levels = c("low", "med", "high", "vhigh"),
+1745091515933:ordered = TRUE)
+1745091515933:car_data$lug_boot <- factor(car_data$lug_boot,
+1745091515933:levels = c("small", "med", "big"),
+1745091515933:ordered = TRUE)
+1745091515934:car_data$safety <- factor(car_data$safety,
+1745091515934:levels = c("low", "med", "high"),
+1745091515934:ordered = TRUE)
+1745091515934:car_data$class <- factor(car_data$class,
+1745091515935:levels = c("unacc", "acc", "good", "vgood"),
+1745091515935:ordered = TRUE)
+1745091515935:# === EDA ===
+1745091515935:# general explore
+1745091515935:str(car_data)
+1745091515943:summary(car_data)
+1745091515945:# class distribution analysis
+1745091515945:png("result_1_distribution.png", width = 800, height = 600, res = 100)
+1745091515946:class_dist <- table(car_data$class)
+1745091515946:prop_dist <- prop.table(class_dist) * 100
+1745091515946:barplot(prop_dist,
+1745091515947:main = "Car Evaluation Class Distribution",
+1745091515947:xlab = "Evaluation Category",
+1745091515947:ylab = "Percentage (%)",
+1745091515947:col = palette("Paired")[1:4],
+1745091515947:ylim = c(0, 75),
+1745091515947:cex.names = 1.2,
+1745091515947:cex.lab = 1.2)
+1745091515949:text(x = seq_along(prop_dist),
+1745091515950:y = prop_dist + 2,
+1745091515950:labels = paste0(round(prop_dist, 1), "%"),
+1745091515950:col = "black",
+1745091515950:cex = 1.0)
+1745091515951:dev.off()
+1745091515974:# chi-square (association between feature & target)
+1745091515974:features <- setdiff(names(car_data), "class")
+1745091515975:chi_results <- lapply(features, function(feat) {
+1745091515975:tbl <- table(car_data[[feat]], car_data$class)
+1745091515975:chi_test <- chisq.test(tbl)
+1745091515976:data.frame(Feature = feat,
+1745091515976:P_Value = chi_test$p.value,
+1745091515976:Chi_Squared = chi_test$statistic)
+1745091515976:})
+1745091515984:do.call(rbind, chi_results)
+1745091515985:# visualize distribution
+1745091515986:plot_data <- car_data %>%
+1745091515986:mutate(class = factor(class, levels = c("unacc", "acc", "good", "vgood")))
+1745091515987:features <- setdiff(names(plot_data), "class")
+1745091515987:plots <- lapply(features, function(feature) {
+1745091515987:ggplot(plot_data, aes_string(x = feature, fill = "class")) +
+1745091515988:geom_bar(position = "fill") +
+1745091515988:labs(title = paste("Distribution by", feature), y = "Proportion") +
+1745091515988:scale_fill_brewer(palette = "Paired") +
+1745091515988:theme(axis.text.x = element_text(angle = 45, hjust = 1))
+1745091515988:})
+1745091516041:png("result_2_distribution.png", width = 1600, height = 1200, res = 100)
+1745091516042:do.call(grid.arrange, c(plots, ncol = 2))
+1745091516946:dev.off()
+1745091517036:# === PRE-PROCESSING ===
+1745091517036:# ordinal encoding
+1745091517036:car_data <- car_data %>%
+1745091517036:mutate(
+1745091517037:buying = factor(buying, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745091517037:maint = factor(maint, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745091517037:safety = factor(safety, levels = c("low", "med", "high"), ordered = TRUE),
+1745091517037:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE),
+1745091517037:doors = factor(doors, levels = c("2", "3", "4", "5more"), ordered = TRUE),
+1745091517037:persons = factor(persons, levels = c("2", "4", "more"), ordered = TRUE),
+1745091517038:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE)
+1745091517038:)
+1745091517041:ordinal_features <- setdiff(names(car_data), "class")
+1745091517041:target <- "class"
+1745091517041:car_encoded <- data.frame(
+1745091517041:lapply(car_data[, ordinal_features], as.integer),
+1745091517041:class = car_data[[target]]
+1745091517042:)
+1745091517042:# visualize
+1745091517043:str(car_data)
+1745091517050:summary(car_encoded)
+1745091517055:features <- setdiff(names(car_encoded), "class")
+1745091517055:for (feat in features) {
+1745091517055:cat("\n---", feat, "vs. class ---\n")
+1745091517055:print(table(car_encoded[[feat]], car_encoded$class))
+1745091517056:}
+1745091517070:# standardization scaling
+1745091517071:set.seed(123)
+1745091517071:train_index <- sample(1:nrow(car_encoded), 0.8 * nrow(car_encoded))
+1745091517071:train_data <- car_encoded[train_index, ]
+1745091517071:test_data <- car_encoded[-train_index, ]
+1745091517072:preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+1745091517076:train_original <- train_data[, -ncol(train_data)]
+1745091517076:train_scaled <- predict(preproc, train_data)[, -ncol(train_data)]
+1745091517078:test_scaled <- predict(preproc, test_data)
+1745091517080:# visualize
+1745091517080:scaling_comparison <- bind_rows(
+1745091517081:list(Original = train_original, Scaled = train_scaled),
+1745091517081:.id = "Group"
+1745091517081:) %>%
+1745091517081:pivot_longer(
+1745091517081:cols = -Group,
+1745091517081:names_to = "Feature",
+1745091517081:values_to = "Value"
+1745091517082:)
+1745091517089:p <- ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091517089:geom_density(alpha = 0.3) +
+1745091517089:facet_wrap(~ Feature, scales = "free") +
+1745091517089:scale_fill_manual(values = c("Original" = "#29ff3b","Scaled" = "#2b92ff"))
+1745091517097:labs(
+1745091517097:title = "Feature Distributions: Before vs. After Scaling",
+1745091517097:x = "Value",
+1745091517097:y = "Density",
+1745091517097:fill = "Data State"
+1745091517098:) +
+1745091517098:theme_minimal()
+1745091517101:ggsave(filename = "result_3_scaling.png", plot = p)
+1745091517781:# over-sampling
+1745091517781:cat("Class distribution BEFORE balancing:\n")
+1745091517781:print(table(train_scaled$class))
+1745091517781:train_balanced <- upSample(x = train_scaled[, -ncol(train_scaled)],
+1745091517782:y = train_scaled[, ncol(train_scaled)],
+1745091517782:yname = "class")
+1745091517783:cat("\nClass distribution AFTER SMOTE:\n")
+1745091517783:print(table(train_balanced$class))
+1745091517784:# === MODELING ===
+1745091517784:# random forest
+1745091517784:rf_ctrl <- trainControl(method = "repeatedcv",
+1745091517784:number = 3,
+1745091517784:classProbs = TRUE)
+1745091517785:rf_model <- train(
+1745091517785:class ~ .,
+1745091517785:data    = train_balanced,
+1745091517785:method  = "rf",
+1745091517785:trControl = rf_ctrl,
+1745091517785:tuneLength = 5
+1745091517786:)
+1745091562066:train_original <- train_data
+1745091562067:train_scaled <- predict(preproc, train_data)
+1745091562072:test_scaled <- predict(preproc, test_data)
+1745091562075:# visualize
+1745091562075:scaling_comparison <- bind_rows(
+1745091562075:list(Original = train_original, Scaled = train_scaled),
+1745091562076:.id = "Group"
+1745091562076:) %>%
+1745091562076:pivot_longer(
+1745091562076:cols = -Group,
+1745091562076:names_to = "Feature",
+1745091562077:values_to = "Value"
+1745091562077:)
+1745091571289:preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+1745091571293:train_original <- train_data
+1745091571293:train_scaled <- predict(preproc, train_data)
+1745091571296:test_scaled <- predict(preproc, test_data)
+1745091571298:# visualize
+1745091571298:scaling_comparison <- bind_rows(
+1745091571298:list(Original = train_original, Scaled = train_scaled),
+1745091571298:.id = "Group"
+1745091571299:) %>%
+1745091571299:pivot_longer(
+1745091571299:cols = -Group,
+1745091571299:names_to = "Feature",
+1745091571299:values_to = "Value"
+1745091571299:)
+1745091588049:train_original
+1745091600746:head(train_scaled)
+1745091602883:head(train_original)
+1745091693805:scaling_comparison <- bind_rows(
+1745091693806:list(Original = train_original, Scaled = train_scaled %>% select(-class) ),
+1745091693806:.id = "Group"
+1745091693806:) %>%
+1745091693806:pivot_longer(
+1745091693806:cols = -Group,
+1745091693806:names_to = "Feature",
+1745091693806:values_to = "Value"
+1745091693807:)
+1745091704094:# visualize
+1745091704094:scaling_comparison <- bind_rows(
+1745091704094:list(Original = train_original %>% select(-class), Scaled = train_scaled %>% select(-class) ),
+1745091704095:.id = "Group"
+1745091704095:) %>%
+1745091704095:pivot_longer(
+1745091704095:cols = -Group,
+1745091704095:names_to = "Feature",
+1745091704096:values_to = "Value"
+1745091704096:)
+1745091704103:p <- ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745091704104:geom_density(alpha = 0.3) +
+1745091704104:facet_wrap(~ Feature, scales = "free") +
+1745091704104:scale_fill_manual(values = c("Original" = "#29ff3b","Scaled" = "#2b92ff"))
+1745091704108:labs(
+1745091704108:title = "Feature Distributions: Before vs. After Scaling",
+1745091704108:x = "Value",
+1745091704108:y = "Density",
+1745091704108:fill = "Data State"
+1745091704109:) +
+1745091704109:theme_minimal()
+1745091704122:ggsave(filename = "result_3_scaling.png", plot = p)
+1745091716434:# over-sampling
+1745091716434:cat("Class distribution BEFORE balancing:\n")
+1745091716434:print(table(train_scaled$class))
+1745091716436:train_balanced <- upSample(x = train_scaled[, -ncol(train_scaled)],
+1745091716436:y = train_scaled[, ncol(train_scaled)],
+1745091716437:yname = "class")
+1745091716445:cat("\nClass distribution AFTER SMOTE:\n")
+1745091716445:print(table(train_balanced$class))
+1745092040770:class_counts <- data.frame(
+1745092040770:Stage = c(rep("Before", 4), rep("After", 4)),
+1745092040770:Class = rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092040770:Count = c(
+1745092040770:table(train_scaled$class),  # Original counts
+1745092040771:table(train_balanced$class) # Balanced counts
+1745092040771:)
+1745092040771:)
+1745092040772:ggplot(class_counts, aes(x = Class, y = Count, fill = Stage)) +
+1745092040772:geom_bar(stat = "identity", position = "dodge") +
+1745092040772:labs(
+1745092040772:title = "Class Distribution Before vs. After Over-Sampling",
+1745092040772:x = "Class",
+1745092040772:y = "Count",
+1745092040772:fill = "Stage"
+1745092040773:) +
+1745092040773:scale_fill_manual(values = c("#E69F00", "#56B4E9")) +  # Custom colors
+1745092040773:theme_minimal()
+1745092057548:class_counts <- data.frame(
+1745092057548:Stage = c(rep("Before", 4), rep("After", 4)),
+1745092057548:Class = rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092057549:Count = c(
+1745092057549:table(train_scaled$class),  # Original counts
+1745092057549:table(train_balanced$class) # Balanced counts
+1745092057549:)
+1745092057549:)
+1745092057550:ggplot(class_counts, aes(x = Class, y = Count, fill = Stage)) +
+1745092057551:geom_bar(stat = "identity", position = "dodge") +
+1745092057551:labs(
+1745092057551:title = "Class Distribution Before vs. After Over-Sampling",
+1745092057551:x = "Class",
+1745092057551:y = "Count",
+1745092057551:fill = "Stage"
+1745092057551:) +
+1745092057552:scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +  # Custom colors
+1745092057552:theme_minimal()
+1745092106094:class_counts <- data.frame(
+1745092106095:Stage = c(rep("After", 4), rep("Before", 4)),
+1745092106095:Class = rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092106095:Count = c(
+1745092106095:table(train_balanced$class)
+1745092106095:table(train_scaled$class),
+1745092124511:class_counts <- data.frame(
+1745092124512:Stage = c(rep("After", 4), rep("Before", 4)),
+1745092124512:Class = rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092124512:Count = c(
+1745092124512:table(train_balanced$class),
+1745092124512:table(train_scaled$class)
+1745092124513:)
+1745092124513:)
+1745092124514:ggplot(class_counts, aes(x = Class, y = Count, fill = Stage)) +
+1745092124514:geom_bar(stat = "identity", position = "dodge") +
+1745092124514:labs(
+1745092124514:title = "Class Distribution Before vs. After Over-Sampling",
+1745092124514:x = "Class",
+1745092124514:y = "Count",
+1745092124514:fill = "Stage"
+1745092124514:) +
+1745092124515:scale_fill_manual(values = c("#29ff3b", "#2b92ff")) +
+1745092124515:theme_minimal()
+1745092149500:class_counts <- data.frame(
+1745092149500:Stage = c(rep("After", 4), rep("Before", 4)),
+1745092149500:Class = rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092149500:Count = c(
+1745092149501:table(train_scaled$class),
+1745092149501:table(train_balanced$class)
+1745092149501:)
+1745092149501:)
+1745092149502:ggplot(class_counts, aes(x = Class, y = Count, fill = Stage)) +
+1745092149502:geom_bar(stat = "identity", position = "dodge") +
+1745092149502:labs(
+1745092149502:title = "Class Distribution Before vs. After Over-Sampling",
+1745092149503:x = "Class",
+1745092149503:y = "Count",
+1745092149503:fill = "Stage"
+1745092149503:) +
+1745092149503:scale_fill_manual(values = c("#29ff3b", "#2b92ff")) +
+1745092149504:theme_minimal()
+1745092172251:class_counts <- data.frame(
+1745092172251:Stage = c(rep("Before", 4), rep("After", 4)),
+1745092172251:Class = rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092172251:Count = c(
+1745092172251:table(train_scaled$class),
+1745092172252:table(train_balanced$class)
+1745092172252:)
+1745092172252:)
+1745092172253:ggplot(class_counts, aes(x = Class, y = Count, fill = Stage)) +
+1745092172253:geom_bar(stat = "identity", position = "dodge") +
+1745092172253:labs(
+1745092172254:title = "Class Distribution Before vs. After Over-Sampling",
+1745092172254:x = "Class",
+1745092172254:y = "Count",
+1745092172254:fill = "Stage"
+1745092172254:) +
+1745092172254:scale_fill_manual(values = c("#29ff3b", "#2b92ff")) +
+1745092172254:theme_minimal()
+1745092245690:ggplot(class_counts, aes(x = Class, y = Count, fill = Stage)) +
+1745092245690:geom_col(position = position_dodge(height = 0.8)) +
+1745092245691:labs(
+1745092245692:title = "Class Distribution Before vs. After Over-Sampling",
+1745092245692:x = "Class",
+1745092245692:y = "Count",
+1745092245692:fill = "Stage"
+1745092245692:) +
+1745092245692:scale_fill_manual(values = c("#29ff3b", "#2b92ff")) +
+1745092245693:theme_minimal()
+1745092246641:ggplot(class_counts, aes(x = Class, y = Count, fill = Stage)) +
+1745092246642:geom_col(position = position_dodge(height = 0.8)) +
+1745092246642:labs(
+1745092246642:title = "Class Distribution Before vs. After Over-Sampling",
+1745092246642:x = "Class",
+1745092246642:y = "Count",
+1745092246643:fill = "Stage"
+1745092246643:) +
+1745092246643:scale_fill_manual(values = c("#29ff3b", "#2b92ff")) +
+1745092246643:theme_minimal()
+1745092264659:ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092264660:geom_col(position = position_dodge(height = 0.8)) +  # Horizontal bars
+1745092264660:labs(
+1745092264660:title = "Class Distribution Before vs. After Over-Sampling",
+1745092264660:x = "Count",
+1745092264660:y = "Class",
+1745092264660:fill = "Stage"
+1745092264660:) +
+1745092264661:scale_fill_manual(values = c("#E69F00", "#56B4E9")) +  # Orange/Blue colors
+1745092264661:theme_minimal() +
+1745092264661:theme(
+1745092264661:axis.text.y = element_text(size = 12),  # Larger y-axis labels
+1745092264661:axis.title = element_text(size = 14),
+1745092264661:legend.position = "bottom"
+1745092264661:)
+1745092282471:class_counts <- data.frame(
+1745092282471:Stage = c(rep("Before", 4), rep("After", 4)),
+1745092282472:Class = factor(
+1745092282472:rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092282472:levels = c("unacc", "acc", "good", "vgood")  # Preserve order
+1745092282472:),
+1745092282472:Count = c(
+1745092282472:table(train_scaled$class),   # Original counts
+1745092282472:table(train_balanced$class)  # Balanced counts
+1745092282473:)
+1745092282473:)
+1745092282474:ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092282474:geom_col(position = position_dodge(height = 0.8)) +  # Horizontal bars
+1745092282474:labs(
+1745092282474:title = "Class Distribution Before vs. After Over-Sampling",
+1745092282474:x = "Count",
+1745092282474:y = "Class",
+1745092282475:fill = "Stage"
+1745092282475:) +
+1745092282475:scale_fill_manual(values = c("#E69F00", "#56B4E9")) +  # Orange/Blue colors
+1745092282475:theme_minimal() +
+1745092282475:theme(
+1745092282475:axis.text.y = element_text(size = 12),  # Larger y-axis labels
+1745092282475:axis.title = element_text(size = 14),
+1745092282476:legend.position = "bottom"
+1745092282476:)
+1745092324672:class_counts <- data.frame(
+1745092324672:Stage = c(rep("Before", 4), rep("After", 4)),
+1745092324672:Class = factor(
+1745092324672:rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092324672:levels = c("unacc", "acc", "good", "vgood")  # Preserve order
+1745092324673:),
+1745092324673:Count = c(
+1745092324673:table(train_scaled$class),   # Original counts
+1745092324673:table(train_balanced$class)  # Balanced counts
+1745092324673:)
+1745092324673:)
+1745092324674:ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092324674:geom_col(position = position_dodge(width = 0.8)) +  # Horizontal bars
+1745092324674:labs(
+1745092324675:title = "Class Distribution Before vs. After Over-Sampling",
+1745092324675:x = "Count",
+1745092324675:y = "Class",
+1745092324675:fill = "Stage"
+1745092324675:) +
+1745092324675:scale_fill_manual(values = c("#E69F00", "#56B4E9")) +  # Orange/Blue colors
+1745092324675:theme_minimal() +
+1745092324675:theme(
+1745092324675:axis.text.y = element_text(size = 12),  # Larger y-axis labels
+1745092324675:axis.title = element_text(size = 14),
+1745092324675:legend.position = "bottom"
+1745092324676:)
+1745092346586:class_counts <- data.frame(
+1745092346586:Stage = c(rep("Before", 4), rep("After", 4)),
+1745092346587:Class = factor(
+1745092346587:rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092346587:levels = c("unacc", "acc", "good", "vgood")  # Preserve order
+1745092346587:),
+1745092346587:Count = c(
+1745092346588:table(train_scaled$class),   # Original counts
+1745092346588:table(train_balanced$class)  # Balanced counts
+1745092346588:)
+1745092346588:)
+1745092346590:ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092346590:geom_col(position = position_dodge(width = 0.8)) +  # Horizontal bars
+1745092346590:labs(
+1745092346590:title = "Class Distribution Before vs. After Over-Sampling",
+1745092346590:x = "Count",
+1745092346590:y = "Class",
+1745092346590:fill = "Stage"
+1745092346590:) +
+1745092346590:scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +  # Orange/Blue colors
+1745092346591:theme_minimal() +
+1745092346591:theme(
+1745092346591:axis.text.y = element_text(size = 12),  # Larger y-axis labels
+1745092346591:axis.title = element_text(size = 14),
+1745092346591:legend.position = "bottom"
+1745092346591:)
+1745092382314:ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092382314:geom_col(position = position_dodge(width = 0.8)) +
+1745092382314:labs(
+1745092382315:title = "Class Distribution Before vs. After Over-Sampling",
+1745092382315:x = "Count",
+1745092382315:y = "Class",
+1745092382315:fill = "Stage"
+1745092382315:) +
+1745092382315:scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +
+1745092382315:theme_minimal()
+1745092391019:ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092391019:geom_col(position = position_dodge(width = 0.8)) +
+1745092391019:labs(
+1745092391019:title = "Class Distribution Before vs. After Over-Sampling",
+1745092391019:x = "Count",
+1745092391019:y = "Class",
+1745092391020:fill = "Stage"
+1745092391020:) +
+1745092391020:scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +
+1745092391020:theme_minimal() +
+1745092391020:theme(
+1745092391020:axis.text.y = element_text(size = 12),
+1745092391020:axis.title = element_text(size = 14),
+1745092391021:legend.position = "bottom"
+1745092391021:)
+1745092435354:p <- ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092435354:geom_col(position = position_dodge(width = 0.8)) +
+1745092435354:labs(
+1745092435354:title = "Class Distribution Before vs. After Over-Sampling",
+1745092435355:x = "Count",
+1745092435355:y = "Class",
+1745092435355:fill = "Stage"
+1745092435355:) +
+1745092435355:scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +
+1745092435355:theme_minimal() +
+1745092435355:theme(
+1745092435355:axis.text.y = element_text(size = 12),
+1745092435355:axis.title = element_text(size = 14),
+1745092435355:legend.position = "bottom"
+1745092435356:)
+1745092435362:ggsave(filename = "result_4_over-sampling.png", plot = p)
+1745092482070:p <- ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092482070:geom_col(position = position_dodge(width = 0.8)) +
+1745092482070:labs(
+1745092482070:title = "Class Distribution Before vs. After Over-Sampling",
+1745092482071:x = "Count",
+1745092482071:y = "Class",
+1745092482071:fill = "Stage"
+1745092482071:) +
+1745092482071:scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +
+1745092482072:theme_minimal() +
+1745092482072:theme(
+1745092482072:panel.background = element_rect(fill = "white"),
+1745092482072:axis.text.y = element_text(size = 12),
+1745092482072:axis.title = element_text(size = 14),
+1745092482073:legend.position = "bottom"
+1745092482073:)
+1745092482082:ggsave(filename = "result_4_over-sampling.png", plot = p)
+1745092577820:p <- ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092577820:geom_col(position = position_dodge(width = 0.8)) +
+1745092577820:labs(
+1745092577820:title = "Class Distribution Before vs. After Over-Sampling",
+1745092577820:x = "Count",
+1745092577820:y = "Class",
+1745092577821:fill = "Stage"
+1745092577821:) +
+1745092577821:scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +
+1745092577821:theme_minimal() +
+1745092577821:theme(
+1745092577822:plot.background = element_rect(fill = "white"),
+1745092577822:axis.text.y = element_text(size = 12),
+1745092577822:axis.title = element_text(size = 14),
+1745092577822:legend.position = "bottom"
+1745092577822:)
+1745092577830:ggsave(filename = "result_4_over-sampling.png", plot = p)
+1745092655463:p <- ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092655463:geom_col(position = position_dodge(width = 0.8)) +
+1745092655463:labs(
+1745092655463:title = "Class Distribution Before vs. After Over-Sampling",
+1745092655463:x = "Count",
+1745092655463:y = "Class",
+1745092655463:fill = "Stage"
+1745092655463:) +
+1745092655463:scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +
+1745092655463:theme_minimal() +
+1745092655464:theme(
+1745092655464:panel.background = element_rect(fill = "white"),
+1745092655464:axis.text.y = element_text(size = 12),
+1745092655464:axis.title = element_text(size = 14),
+1745092655464:legend.position = "bottom"
+1745092655464:)
+1745092655473:ggsave(filename = "result_4_over-sampling.png", plot = p)
+1745092741352:# import library
+1745092741353:if (!require("ggplot2")) {
+1745092741353:install.packages("ggplot2", dependencies = TRUE)
+1745092741353:}
+1745092741353:if (!require("vcd")) {
+1745092741354:install.packages("vcd", dependencies = TRUE)
+1745092741354:}
+1745092741354:if (!require("ca")) {
+1745092741354:install.packages("ca", dependencies = TRUE)
+1745092741354:}
+1745092741354:if (!require("caret")) {
+1745092741354:install.packages("caret", dependencies = TRUE)
+1745092741355:}
+1745092741355:if (!require("smotefamily")) {
+1745092741355:install.packages("smotefamily", dependencies = TRUE)
+1745092741355:}
+1745092741355:if (!require("corrplot")) {
+1745092741355:install.packages("corrplot", dependencies = TRUE)
+1745092741355:}
+1745092741356:if (!require("txtplot")) {
+1745092741356:install.packages("txtplot", dependencies = TRUE)
+1745092741356:}
+1745092741356:if (!require("GGally")) {
+1745092741356:install.packages("GGally", dependencies = TRUE)
+1745092741356:}
+1745092741356:if (!require("kableExtra")) {
+1745092741356:install.packages("kableExtra", dependencies = TRUE)
+1745092741357:}
+1745092741357:if (!require("htmltools")) {
+1745092741357:install.packages("htmltools", dependencies = TRUE)
+1745092741357:}
+1745092741357:if (!require("webshot2")) {
+1745092741358:install.packages("webshot2", dependencies = TRUE)
+1745092741358:}
+1745092741358:if (!require("ggsci")) {
+1745092741358:install.packages("ggsci", dependencies = TRUE)
+1745092741358:}
+1745092741358:if (!require("ggthemes")) {
+1745092741358:install.packages("ggthemes", dependencies = TRUE)
+1745092741359:}
+1745092741359:library(ggplot2)
+1745092741359:library(vcd)
+1745092741359:library(RColorBrewer)
+1745092741359:library(scales)
+1745092741360:library(dplyr)
+1745092741360:library(ca)
+1745092741360:library(gridExtra)
+1745092741360:library(caret)
+1745092741361:library(smotefamily)
+1745092741361:library(corrplot)
+1745092741361:library(txtplot)
+1745092741361:library(GGally)
+1745092741362:library(tidyr)
+1745092741362:library(patchwork)
+1745092741362:library(knitr)
+1745092741362:library(kableExtra)
+1745092741362:library(htmltools)
+1745092741363:library(webshot2)
+1745092741363:library(ggsci)
+1745092741363:library(ggthemes)
+1745092741363:# load data
+1745092741364:col_names <- c("buying", "maint", "doors", "persons", "lug_boot", "safety", "class")
+1745092741364:car_data <- read.csv("car.data", header = FALSE, col.names = col_names, stringsAsFactors = TRUE)
+1745092741366:# set factor level
+1745092741367:car_data$buying <- factor(car_data$buying,
+1745092741367:levels = c("low", "med", "high", "vhigh"),
+1745092741367:ordered = TRUE)
+1745092741367:car_data$maint <- factor(car_data$maint,
+1745092741367:levels = c("low", "med", "high", "vhigh"),
+1745092741367:ordered = TRUE)
+1745092741368:car_data$lug_boot <- factor(car_data$lug_boot,
+1745092741368:levels = c("small", "med", "big"),
+1745092741368:ordered = TRUE)
+1745092741368:car_data$safety <- factor(car_data$safety,
+1745092741368:levels = c("low", "med", "high"),
+1745092741368:ordered = TRUE)
+1745092741369:car_data$class <- factor(car_data$class,
+1745092741369:levels = c("unacc", "acc", "good", "vgood"),
+1745092741369:ordered = TRUE)
+1745092741369:# === EDA ===
+1745092741370:# general explore
+1745092741370:str(car_data)
+1745092741377:summary(car_data)
+1745092741380:# class distribution analysis
+1745092741380:png("result_1_distribution.png", width = 800, height = 600, res = 100)
+1745092741380:class_dist <- table(car_data$class)
+1745092741381:prop_dist <- prop.table(class_dist) * 100
+1745092741381:barplot(prop_dist,
+1745092741381:main = "Car Evaluation Class Distribution",
+1745092741381:xlab = "Evaluation Category",
+1745092741381:ylab = "Percentage (%)",
+1745092741381:col = palette("Paired")[1:4],
+1745092741382:ylim = c(0, 75),
+1745092741382:cex.names = 1.2,
+1745092741382:cex.lab = 1.2)
+1745092741384:text(x = seq_along(prop_dist),
+1745092741384:y = prop_dist + 2,
+1745092741384:labels = paste0(round(prop_dist, 1), "%"),
+1745092741384:col = "black",
+1745092741384:cex = 1.0)
+1745092741385:dev.off()
+1745092741404:# chi-square (association between feature & target)
+1745092741404:features <- setdiff(names(car_data), "class")
+1745092741404:chi_results <- lapply(features, function(feat) {
+1745092741404:tbl <- table(car_data[[feat]], car_data$class)
+1745092741405:chi_test <- chisq.test(tbl)
+1745092741405:data.frame(Feature = feat,
+1745092741405:P_Value = chi_test$p.value,
+1745092741406:Chi_Squared = chi_test$statistic)
+1745092741406:})
+1745092741414:do.call(rbind, chi_results)
+1745092741416:# visualize distribution
+1745092741416:plot_data <- car_data %>%
+1745092741416:mutate(class = factor(class, levels = c("unacc", "acc", "good", "vgood")))
+1745092741417:features <- setdiff(names(plot_data), "class")
+1745092741417:plots <- lapply(features, function(feature) {
+1745092741418:ggplot(plot_data, aes_string(x = feature, fill = "class")) +
+1745092741418:geom_bar(position = "fill") +
+1745092741418:labs(title = paste("Distribution by", feature), y = "Proportion") +
+1745092741418:scale_fill_brewer(palette = "Paired") +
+1745092741418:theme(axis.text.x = element_text(angle = 45, hjust = 1))
+1745092741418:})
+1745092741454:png("result_2_distribution.png", width = 1600, height = 1200, res = 100)
+1745092741455:do.call(grid.arrange, c(plots, ncol = 2))
+1745092742205:dev.off()
+1745092742282:# === PRE-PROCESSING ===
+1745092742282:# ordinal encoding
+1745092742282:car_data <- car_data %>%
+1745092742282:mutate(
+1745092742282:buying = factor(buying, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745092742283:maint = factor(maint, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
+1745092742283:safety = factor(safety, levels = c("low", "med", "high"), ordered = TRUE),
+1745092742283:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE),
+1745092742283:doors = factor(doors, levels = c("2", "3", "4", "5more"), ordered = TRUE),
+1745092742283:persons = factor(persons, levels = c("2", "4", "more"), ordered = TRUE),
+1745092742283:class = factor(class, levels = c("unacc", "acc", "good", "vgood"), ordered = TRUE)
+1745092742283:)
+1745092742286:ordinal_features <- setdiff(names(car_data), "class")
+1745092742287:target <- "class"
+1745092742287:car_encoded <- data.frame(
+1745092742287:lapply(car_data[, ordinal_features], as.integer),
+1745092742287:class = car_data[[target]]
+1745092742287:)
+1745092742288:# visualize
+1745092742288:str(car_data)
+1745092742295:summary(car_encoded)
+1745092742299:features <- setdiff(names(car_encoded), "class")
+1745092742300:for (feat in features) {
+1745092742300:cat("\n---", feat, "vs. class ---\n")
+1745092742300:print(table(car_encoded[[feat]], car_encoded$class))
+1745092742300:}
+1745092742311:# standardization scaling
+1745092742311:set.seed(123)
+1745092742311:train_index <- sample(1:nrow(car_encoded), 0.8 * nrow(car_encoded))
+1745092742311:train_data <- car_encoded[train_index, ]
+1745092742312:test_data <- car_encoded[-train_index, ]
+1745092742312:preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+1745092742316:train_original <- train_data
+1745092742316:train_scaled <- predict(preproc, train_data)
+1745092742318:test_scaled <- predict(preproc, test_data)
+1745092742320:# visualize
+1745092742320:scaling_comparison <- bind_rows(
+1745092742320:list(Original = train_original %>% select(-class), Scaled = train_scaled %>% select(-class) ),
+1745092742320:.id = "Group"
+1745092742321:) %>%
+1745092742321:pivot_longer(
+1745092742321:cols = -Group,
+1745092742321:names_to = "Feature",
+1745092742321:values_to = "Value"
+1745092742321:)
+1745092742336:p <- ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+1745092742336:geom_density(alpha = 0.3) +
+1745092742336:facet_wrap(~ Feature, scales = "free") +
+1745092742336:scale_fill_manual(values = c("Original" = "#29ff3b","Scaled" = "#2b92ff"))
+1745092742341:labs(
+1745092742341:title = "Feature Distributions: Before vs. After Scaling",
+1745092742341:x = "Value",
+1745092742341:y = "Density",
+1745092742341:fill = "Data State"
+1745092742341:) +
+1745092742341:theme_minimal()
+1745092742344:ggsave(filename = "result_3_scaling.png", plot = p)
+1745092743028:# over-sampling
+1745092743029:cat("Class distribution BEFORE balancing:\n")
+1745092743029:print(table(train_scaled$class))
+1745092743030:train_balanced <- upSample(x = train_scaled[, -ncol(train_scaled)],
+1745092743030:y = train_scaled[, ncol(train_scaled)],
+1745092743030:yname = "class")
+1745092743035:cat("\nClass distribution AFTER SMOTE:\n")
+1745092743036:print(table(train_balanced$class))
+1745092743036:# visualize
+1745092743036:class_counts <- data.frame(
+1745092743036:Stage = c(rep("Before", 4), rep("After", 4)),
+1745092743036:Class = factor(
+1745092743037:rep(c("unacc", "acc", "good", "vgood"), 2),
+1745092743037:levels = c("unacc", "acc", "good", "vgood")  # Preserve order
+1745092743037:),
+1745092743037:Count = c(
+1745092743037:table(train_scaled$class),
+1745092743037:table(train_balanced$class)
+1745092743037:)
+1745092743037:)
+1745092743038:p <- ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+1745092743038:geom_col(position = position_dodge(width = 0.8)) +
+1745092743038:labs(
+1745092743039:title = "Class Distribution Before vs. After Over-Sampling",
+1745092743039:x = "Count",
+1745092743039:y = "Class",
+1745092743039:fill = "Stage"
+1745092743039:) +
+1745092743039:scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +
+1745092743039:theme_minimal() +
+1745092743040:theme(
+1745092743040:panel.background = element_rect(fill = "white"),
+1745092743040:axis.text.y = element_text(size = 12),
+1745092743040:axis.title = element_text(size = 14),
+1745092743040:legend.position = "bottom"
+1745092743040:)
+1745092743046:ggsave(filename = "result_4_over-sampling.png", plot = p)
+1745092743466:# === MODELING ===
+1745092743466:# random forest
+1745092743467:rf_ctrl <- trainControl(method = "repeatedcv",
+1745092743467:number = 3,
+1745092743467:classProbs = TRUE)
+1745092743467:rf_model <- train(
+1745092743467:class ~ .,
+1745092743467:data    = train_balanced,
+1745092743467:method  = "rf",
+1745092743468:trControl = rf_ctrl,
+1745092743468:tuneLength = 5
+1745092743468:)
+1745092758274:rf_pred <- predict(rf_model, newdata = test_scaled)
+1745092758282:rf_cm   <- confusionMatrix(rf_pred, test_scaled$class)
+1745092758294:print(rf_model)
+1745092758300:print(rf_cm)
+1745092758305:# SVM
+1745092758305:svm_ctrl <- trainControl(method = "repeatedcv",
+1745092758305:number = 3,
+1745092758305:classProbs = TRUE)
+1745092758305:svm_model <- train(
+1745092758306:class ~ .,
+1745092758306:data    = train_balanced,
+1745092758306:method  = "svmRadial",
+1745092758306:trControl = svm_ctrl,
+1745092758306:tuneLength = 5
+1745092758306:)
+1745092766758:svm_pred <- predict(svm_model, newdata = test_scaled)
+1745092766797:svm_cm   <- confusionMatrix(svm_pred, test_scaled$class)
+1745092766804:print(svm_model)
+1745092766808:print(svm_cm)
+1745093148535:plot_data <- car_data %>%
+1745093148536:mutate(class = factor(class, levels = c("unacc", "acc", "good", "vgood")))
+1745093148539:features <- setdiff(names(plot_data), "class")
+1745093148539:plots <- lapply(features, function(feature) {
+1745093148539:ggplot(plot_data, aes_string(x = feature, fill = "class")) +
+1745093148539:geom_bar(position = "fill") +
+1745093148539:labs(title = paste("Distribution by", feature), y = "Proportion") +
+1745093148540:scale_fill_brewer(palette = "Paired") +
+1745093148540:theme(
+1745093148540:axis.text.x = element_text(size = 12, angle = 45, hjust = 1),
+1745093148540:axis.title.x = element_text(size = 14),
+1745093148540:plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+1745093148540:legend.text = element_text(size = 12),
+1745093148541:legend.title = element_text(size = 14),
+1745093148541:panel.background = element_blank(),
+1745093148541:panel.grid.major = element_line(color = "gray90")
+1745093148541:)
+1745093148541:})
+1745093148583:png("result_2_distribution.png", width = 1600, height = 1200, res = 100)
+1745093148584:do.call(grid.arrange, c(plots, ncol = 2))
+1745093149371:dev.off()

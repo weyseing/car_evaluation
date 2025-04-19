@@ -33,5 +33,6 @@
         "console_left_on_top": false,
         "console_right_on_top": true,
         "additional_source_columns": 0
-    }
+    },
+    "source_with_echo": true
 }

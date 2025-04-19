@@ -14,6 +14,30 @@ if (!require("caret")) {
 if (!require("smotefamily")) {
   install.packages("smotefamily", dependencies = TRUE)
 }
+if (!require("corrplot")) {
+  install.packages("corrplot", dependencies = TRUE)
+}
+if (!require("txtplot")) {
+  install.packages("txtplot", dependencies = TRUE)
+}
+if (!require("GGally")) {
+  install.packages("GGally", dependencies = TRUE)
+}
+if (!require("kableExtra")) {
+  install.packages("kableExtra", dependencies = TRUE)
+}
+if (!require("htmltools")) {
+  install.packages("htmltools", dependencies = TRUE)
+}
+if (!require("webshot2")) {
+  install.packages("webshot2", dependencies = TRUE)
+}
+if (!require("ggsci")) {
+  install.packages("ggsci", dependencies = TRUE)
+}
+if (!require("ggthemes")) {
+  install.packages("ggthemes", dependencies = TRUE)
+}
 library(ggplot2)
 library(vcd)
 library(RColorBrewer)
@@ -23,6 +47,17 @@ library(ca)
 library(gridExtra)
 library(caret)
 library(smotefamily)
+library(corrplot)
+library(txtplot)
+library(GGally)
+library(tidyr)
+library(patchwork)
+library(knitr)
+library(kableExtra)
+library(htmltools)
+library(webshot2)
+library(ggsci)
+library(ggthemes)
 
 # load data
 col_names <- c("buying", "maint", "doors", "persons", "lug_boot", "safety", "class")
@@ -91,7 +126,15 @@ plots <- lapply(features, function(feature) {
     geom_bar(position = "fill") +
     labs(title = paste("Distribution by", feature), y = "Proportion") +
     scale_fill_brewer(palette = "Paired") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    theme(
+      axis.text.x = element_text(size = 12, angle = 45, hjust = 1), 
+      axis.title.x = element_text(size = 14),
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+      legend.text = element_text(size = 12),
+      legend.title = element_text(size = 14),
+      panel.background = element_blank(),  
+      panel.grid.major = element_line(color = "gray90") 
+    )
 })
 
 png("result_2_distribution.png", width = 1600, height = 1200, res = 100)
@@ -100,7 +143,7 @@ dev.off()
 
 # === PRE-PROCESSING ===
 
-# one-hot encoding
+# ordinal encoding
 car_data <- car_data %>%
   mutate(
     buying = factor(buying, levels = c("low", "med", "high", "vhigh"), ordered = TRUE),
@@ -119,8 +162,14 @@ car_encoded <- data.frame(
   class = car_data[[target]]
 )
 
+# visualize
 str(car_data)
 summary(car_encoded)
+features <- setdiff(names(car_encoded), "class")
+for (feat in features) {
+  cat("\n---", feat, "vs. class ---\n")
+  print(table(car_encoded[[feat]], car_encoded$class))
+}
 
 # standardization scaling
 set.seed(123)
@@ -129,9 +178,32 @@ train_data <- car_encoded[train_index, ]
 test_data <- car_encoded[-train_index, ]
 
 preproc <- preProcess(train_data[, -ncol(train_data)], method = c("center", "scale"))
+train_original <- train_data
 train_scaled <- predict(preproc, train_data)
 test_scaled <- predict(preproc, test_data)
-summary(train_scaled)
+
+# visualize
+scaling_comparison <- bind_rows(
+  list(Original = train_original %>% select(-class), Scaled = train_scaled %>% select(-class) ),
+  .id = "Group"
+) %>%
+  pivot_longer(
+    cols = -Group,
+    names_to = "Feature",
+    values_to = "Value"
+  )
+p <- ggplot(scaling_comparison, aes(x = Value, fill = Group)) +
+  geom_density(alpha = 0.3) +
+  facet_wrap(~ Feature, scales = "free") +
+  scale_fill_manual(values = c("Original" = "#29ff3b","Scaled" = "#2b92ff")) 
+  labs(
+    title = "Feature Distributions: Before vs. After Scaling",
+    x = "Value",
+    y = "Density",
+    fill = "Data State"
+  ) +
+  theme_minimal()
+ggsave(filename = "result_3_scaling.png", plot = p)
 
 # over-sampling
 cat("Class distribution BEFORE balancing:\n")
@@ -141,6 +213,37 @@ train_balanced <- upSample(x = train_scaled[, -ncol(train_scaled)],
                            yname = "class")
 cat("\nClass distribution AFTER SMOTE:\n")
 print(table(train_balanced$class))
+
+# visualize
+class_counts <- data.frame(
+  Stage = c(rep("Before", 4), rep("After", 4)),
+  Class = factor(
+    rep(c("unacc", "acc", "good", "vgood"), 2),
+    levels = c("unacc", "acc", "good", "vgood")  # Preserve order
+  ),
+  Count = c(
+    table(train_scaled$class),
+    table(train_balanced$class) 
+  )
+)
+
+p <- ggplot(class_counts, aes(x = Count, y = Class, fill = Stage)) +
+  geom_col(position = position_dodge(width = 0.8)) +
+  labs(
+    title = "Class Distribution Before vs. After Over-Sampling",
+    x = "Count",
+    y = "Class",
+    fill = "Stage"
+  ) +
+  scale_fill_manual(values = c("#2b92ff", "#29ff3b")) +
+  theme_minimal() +
+  theme(
+    panel.background = element_rect(fill = "white"), 
+    axis.text.y = element_text(size = 12), 
+    axis.title = element_text(size = 14),
+    legend.position = "bottom"
+  )
+ggsave(filename = "result_4_over-sampling.png", plot = p)
 
 # === MODELING ===
 
