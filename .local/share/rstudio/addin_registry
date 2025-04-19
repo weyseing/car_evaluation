@@ -1,1 +1,11 @@
-{}
+{
+    "covr::addin_report": {
+        "name": "Calculate package test coverage",
+        "package": "covr",
+        "title": "",
+        "description": "Calculates the package test coverage and opens a report, using `covr::report()`",
+        "interactive": false,
+        "binding": "addin_report",
+        "ordinal": 1
+    }
+}

@@ -1,0 +1,125 @@
+1745049559801:library(ggplot2)
+1745049730832:# import library
+1745049730832:if (!require("ggplot2")) {
+1745049730832:install.packages("ggplot2", dependencies = TRUE)
+1745049730832:}
+1745049780680:if (!require("vcd")) {
+1745049780680:install.packages("vcd", dependencies = TRUE)
+1745049780680:}
+1745049786981:library(ggplot2)
+1745049787440:library(vcd)
+1745049820695:car_data <- read.csv("car.data", header = FALSE, col.names = col_names, stringsAsFactors = TRUE)
+1745049832891:col_names <- c("buying", "maint", "doors", "persons", "lug_boot", "safety", "class")
+1745049832892:car_data <- read.csv("car.data", header = FALSE, col.names = col_names, stringsAsFactors = TRUE)
+1745049844510:str(car_data)
+1745049910404:summary(car_data)
+1745050170348:car_data$buying <- factor(car_data$buying,
+1745050170348:levels = c("low", "med", "high", "vhigh"),
+1745050170349:ordered = TRUE)
+1745050170349:car_data$maint <- factor(car_data$maint,
+1745050170349:levels = c("low", "med", "high", "vhigh"),
+1745050170349:ordered = TRUE)
+1745050170350:car_data$lug_boot <- factor(car_data$lug_boot,
+1745050170350:levels = c("small", "med", "big"),
+1745050170350:ordered = TRUE)
+1745050170350:car_data$safety <- factor(car_data$safety,
+1745050170350:levels = c("low", "med", "high"),
+1745050170351:ordered = TRUE)
+1745050170351:car_data$class <- factor(car_data$class,
+1745050170351:levels = c("unacc", "acc", "good", "vgood"),
+1745050170351:ordered = TRUE)
+1745050194021:# general explore
+1745050194021:str(car_data)
+1745050194028:summary(car_data)
+1745050258848:class_dist <- table(car_data$class)
+1745050258849:prop_dist <- prop.table(class_dist) * 100
+1745050258849:barplot(prop_dist, main = "Class Distribution", xlab = "Class", ylab = "Percentage")
+1745050266709:# class distribution
+1745050266709:class_dist <- table(car_data$class)
+1745050266710:prop_dist <- prop.table(class_dist) * 100
+1745050266710:barplot(prop_dist, main = "Class Distribution", xlab = "Class", ylab = "Percentage")
+1745050303614:class_dist
+1745050315724:prop_dist
+1745050423613:png("result_1_distribution.png",
+1745050423613:width = 800,
+1745050423613:height = 600,
+1745050423613:res = 100)  # res = resolution in DPI
+1745050423614:# Generate plot
+1745050423614:class_dist <- table(car_data$class)
+1745050423615:prop_dist <- prop.table(class_dist) * 100
+1745050423615:barplot(prop_dist,
+1745050423615:main = "Car Evaluation Class Distribution",
+1745050423615:xlab = "Evaluation Category",
+1745050423615:ylab = "Percentage (%)",
+1745050423616:col = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"),
+1745050423616:ylim = c(0, 75),  # Adjust y-axis limit for better readability
+1745050423616:cex.names = 1.2,  # Larger font for x-axis labels
+1745050423616:cex.lab = 1.2)    # Larger font for axis titles
+1745050423625:# Add percentage labels on bars
+1745050423625:text(x = seq_along(prop_dist),
+1745050423625:y = prop_dist + 2,  # Position labels slightly above bars
+1745050423625:labels = paste0(round(prop_dist, 1), "%"),
+1745050423625:col = "black",
+1745050423625:cex = 1.0)
+1745050423627:# Close graphics device
+1745050423627:dev.off()
+1745050481461:png("result_1_distribution.png", width = 800, height = 600, res = 100)
+1745050481462:class_dist <- table(car_data$class)
+1745050481462:prop_dist <- prop.table(class_dist) * 100
+1745050481462:barplot(prop_dist,
+1745050481463:main = "Car Evaluation Class Distribution",
+1745050481463:xlab = "Evaluation Category",
+1745050481463:ylab = "Percentage (%)",
+1745050481463:col = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"),
+1745050481463:ylim = c(0, 75),
+1745050481463:cex.names = 1.2,
+1745050481463:cex.lab = 1.2)
+1745050481465:text(x = seq_along(prop_dist),
+1745050481465:y = prop_dist + 2,
+1745050481465:labels = paste0(round(prop_dist, 1), "%"),
+1745050481465:col = "black",
+1745050481466:cex = 1.0)
+1745050481466:dev.off()
+1745050526568:png("result_1_distribution.png")
+1745050526568:class_dist <- table(car_data$class)
+1745050526568:prop_dist <- prop.table(class_dist) * 100
+1745050526569:barplot(prop.table(table(car_data$class)) * 100,
+1745050526569:main = "Class Distribution",
+1745050526569:xlab = "Class",
+1745050526569:ylab = "Percentage",
+1745050526569:col = "lightgreen")
+1745050526576:dev.off()
+1745050543045:png("result_1_distribution.png", width = 800, height = 600, res = 100)
+1745050543046:class_dist <- table(car_data$class)
+1745050543047:prop_dist <- prop.table(class_dist) * 100
+1745050543047:barplot(prop_dist,
+1745050543047:main = "Car Evaluation Class Distribution",
+1745050543048:xlab = "Evaluation Category",
+1745050543048:ylab = "Percentage (%)",
+1745050543048:col = c("#E69F00", "#56B4E9", "#009E73", "#F0E442"),
+1745050543048:ylim = c(0, 75),
+1745050543048:cex.names = 1.2,
+1745050543049:cex.lab = 1.2)
+1745050543051:text(x = seq_along(prop_dist),
+1745050543051:y = prop_dist + 2,
+1745050543051:labels = paste0(round(prop_dist, 1), "%"),
+1745050543052:col = "black",
+1745050543052:cex = 1.0)
+1745050543052:dev.off()
+1745050935882:features <- setdiff(names(car_data), "class")
+1745050935882:chi_results <- lapply(features, function(feat) {
+1745050935882:tbl <- table(car_data[[feat]], car_data$class)
+1745050935882:chi_test <- chisq.test(tbl)
+1745050935883:data.frame(Feature = feat,
+1745050935883:P_Value = chi_test$p.value,
+1745050935883:Chi_Squared = chi_test$statistic)
+1745050935883:})
+1745050942045:features <- setdiff(names(car_data), "class")
+1745050942046:chi_results <- lapply(features, function(feat) {
+1745050942046:tbl <- table(car_data[[feat]], car_data$class)
+1745050942046:chi_test <- chisq.test(tbl)
+1745050942046:data.frame(Feature = feat,
+1745050942047:P_Value = chi_test$p.value,
+1745050942047:Chi_Squared = chi_test$statistic)
+1745050942047:})
+1745050942056:do.call(rbind, chi_results)
