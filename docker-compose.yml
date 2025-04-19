@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  rstudio:
+    image: rocker/rstudio
+    container_name: rstudio
+    ports:
+      - "8787:8787"
+    environment:
+      - PASSWORD=123456
+    volumes:
+      - ./:/home/rstudio
